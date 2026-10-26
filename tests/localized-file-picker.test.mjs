@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import {parsers} from 'prettier/plugins/acorn.mjs';import {setLanguage,tr} from '../public/i18n.js';
+test('localized file picker keeps a real file input, forwards activation and reads selected text in both UI languages',async()=>{
+ const source=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8'),ast=parsers.acorn.parse(source,{}),fn=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='importDialog');
+ for(const language of ['en','zh']){setLanguage(language);let html='',clicked=0;const fields=new Map(['md-file','choose-md-file','md-file-name','import-name','import-body'].map(id=>[id,{value:'',textContent:'',click(){clicked++;}}]));
+ const run=new Function('modal','$','tr','state','api','navigate','toast',source.slice(fn.start,fn.end)+';return importDialog();');run((title,body)=>{html=body;},selector=>fields.get(selector.slice(1)),tr,{features:{}},()=>{throw Error('No import submitted by a picker check');},()=>{},()=>{});
+ assert.match(html,/<input[^>]*id="md-file"[^>]*type="file"[^>]*hidden/);assert.match(html,/id="choose-md-file"[^>]*aria-controls="md-file"[^>]*aria-describedby="md-file-name"/);assert.match(html,/id="md-file-name"[^>]*aria-live="polite"/);
+ if(language==='en'){assert.match(html,/>Choose file</);assert.match(html,/>No file chosen</);assert.doesNotMatch(html.replace(/<[^>]*>/g,''),/[\u3400-\u9fff]/);}else assert.match(html,/>选择文件</);
+ fields.get('choose-md-file').onclick();assert.equal(clicked,1);await fields.get('md-file').onchange({target:{files:[{name:'example.md',text:async()=>'# Example\n\nExact selected content.'}]}});assert.equal(fields.get('md-file-name').textContent,'example.md');assert.equal(fields.get('import-name').value,'example.md');assert.equal(fields.get('import-body').value,'# Example\n\nExact selected content.');await fields.get('md-file').onchange({target:{files:[]}});assert.equal(fields.get('md-file-name').textContent,language==='en'?'No file chosen':'未选择文件');
+ }setLanguage('zh');
+});

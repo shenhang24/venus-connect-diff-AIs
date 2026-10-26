@@ -6,7 +6,9 @@ Open a record to read, follow a source to Vault, or edit derived content. Import
 
 ## Published screenshot tour
 
-Use the [latest published 0.6.0 gallery](SCREENSHOTS-0.6.0.md), rather than the older image set at the root of `docs/images`:
+Use the [current 0.8.0 English gallery](SCREENSHOTS-0.8.0.md) for the current interface. It includes a large paused network and all four content layers, with synthetic text and anonymized geometry.
+
+The following [0.6.0 gallery](SCREENSHOTS-0.6.0.md) is historical:
 
 | View | Screenshot |
 | --- | --- |

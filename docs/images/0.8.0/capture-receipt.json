@@ -1,0 +1,74 @@
+{
+  "version": "0.8.0",
+  "baseCommit": "f86b11e2bbcffd60ce7f3f3d7c88b6c3f97569ad",
+  "capturedAt": "2026-10-26T06:45:32.598Z",
+  "actualApplication": true,
+  "imageEditing": false,
+  "syntheticText": true,
+  "anonymizedGeometry": true,
+  "originalIdentifiersIncluded": false,
+  "privateContentIncluded": false,
+  "modelCalls": 0,
+  "processingEnabled": false,
+  "networkAnimationPaused": true,
+  "performanceBenchmark": false,
+  "fixtureRecords": {
+    "vault": 372,
+    "knowledge": 11651,
+    "skill": 2743,
+    "concept": 297
+  },
+  "knowledgeDisplayedNodes": 11661,
+  "scope": "Seven captured English views, not every application state",
+  "files": [
+    {
+      "file": "01-knowledge-network.jpg",
+      "width": 1600,
+      "height": 1000,
+      "sha256": "3263aeb80f2051efc16d5833cb25e14451d15a7f7b34ba66cc067f0377e6386b",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "02-knowledge-directory.jpg",
+      "width": 1600,
+      "height": 1000,
+      "sha256": "ec0adcb961e1c588922c031d4852e865392537cb98ff6d35875203a764efa926",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "03-vault-source.jpg",
+      "width": 1600,
+      "height": 1000,
+      "sha256": "67708aa917b5cea1f60e5658b9733d0a32336de81b8dc1d4cff046217546f770",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "04-knowledge-content.jpg",
+      "width": 1600,
+      "height": 1000,
+      "sha256": "034d74a9307f9c70ed41b870d25a7977d6c567c700a7297989ef5c9a8bf84c40",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "05-skill-prompt.jpg",
+      "width": 1600,
+      "height": 1000,
+      "sha256": "f4cf8e8396c33b3f6315a915778e649043eba9aa50e1cdfcd3aa2dfaeb310cfc",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "06-concept.jpg",
+      "width": 1600,
+      "height": 1000,
+      "sha256": "5e20808c0452118cb240382178f5339b9c94b5e50f66efdc87dfd96196eb4c47",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "07-import.jpg",
+      "width": 1600,
+      "height": 1000,
+      "sha256": "741ee586b234097dac956d525a1c8e793dfc68f4a43390dbe30a0de4f6c46a35",
+      "visuallyReviewed": true
+    }
+  ]
+}

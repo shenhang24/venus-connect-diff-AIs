@@ -1649,3 +1649,7 @@ dialog { width:min(620px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-he
 .sidebar{overflow-y:auto;overscroll-behavior:contain}@media(max-height:700px){.sidebar-scroll{min-height:0;flex:0 0 auto;max-height:38dvh}.sidebar .sidebar-bottom{flex:0 0 auto;max-height:36dvh}.sidebar .network-navigation{flex:0 0 auto}.sidebar .workspace-name{flex:0 0 34px}}
 
 .document-parent-path{height:auto;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line)}.document-parent-path button{white-space:normal;text-align:left}.concept-document .document-parent-path{padding-left:0}
+
+.localized-file-picker{display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}.localized-file-picker+input[hidden],input#md-file[hidden]{display:none!important}.localized-file-picker [aria-live]{overflow-wrap:anywhere;color:var(--muted)}
+
+.localized-file-picker button{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:6px 10px}
