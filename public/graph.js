@@ -1493,7 +1493,7 @@ export function mainTagHeat(count,steps=MAIN_TAG_HEAT_STEPS){
   return {color:rank.color,name:tr(rank.name),label:tr('归属连接')+' '+count,reason:tr('按归属节点去重计数；颜色不代表技能程度。')};
 }
 
-function buildNavigationGraph(nodes,edges,positions,spacing){const cores=new Map(),links=new Map(),seeds={...positions},kind=nodes[0]?.kind;const core=(id,title,key,extra={})=>{if(!cores.has(id)){let h=0;for(const c of id)h=Math.imul(h^c.charCodeAt(0),16777619);const a=(h>>>0)/4294967296*Math.PI*2;cores.set(id,{id,title,kind,isMainTag:true,mainTag:key,mainTags:[],...extra});seeds[id]||=[Math.cos(a)*spacing*7,Math.sin(a*2)*spacing*3,Math.sin(a)*spacing*7];}};const edge=(from,to,key,reason)=>links.set(from+'>'+to,{id:'@anchor:'+from+':'+to,from,to,type:'@semantic',strength:1,semanticAnchor:true,membershipLink:true,mainTag:key,summary:reason,reason,sources:[]});for(const n of nodes){for(const d of n.navigationDomains){const key='@major:'+encodeURIComponent(d.id),id='@major:'+kind+':'+d.id;core(id,d.name,key);if(n.navigationProjects?.length){for(const p of n.navigationProjects){const pid='@project:'+kind+':'+p.id;core(pid,p.name,'@project:'+encodeURIComponent(p.id),{isProjectTag:true,projectId:p.id,domainKeys:[]});const c=cores.get(pid);if(!c.domainKeys.includes(key))c.domainKeys.push(key);edge(id,pid,key,'语义大类下的稳定项目引用');edge(pid,n.id,key,'同一项目内容；项目实体不复制');}}else edge(id,n.id,key,d.basis==='pending'?'待语义归纳；保留原细标签':'无项目内容直接保留在大类中');}}const all=[...edges,...links.values()],degrees=effectiveDegrees(all);for(const c of cores.values()){c.domainConnectionCount=degrees[c.id]||0;c.heat=mainTagHeat(c.domainConnectionCount);}return {nodes:[...cores.values(),...nodes],edges:all,positions:seeds};}
+function buildNavigationGraph(nodes,edges,positions,spacing){const cores=new Map(),links=new Map(),seeds={...positions},kind=nodes[0]?.kind;const core=(id,title,key,extra={})=>{if(!cores.has(id)){let h=0;for(const c of id)h=Math.imul(h^c.charCodeAt(0),16777619);const a=(h>>>0)/4294967296*Math.PI*2;cores.set(id,{id,title,kind,isMainTag:true,mainTag:key,mainTags:[],...extra});seeds[id]||=[Math.cos(a)*spacing*7,Math.sin(a*2)*spacing*3,Math.sin(a)*spacing*7];}};const edge=(from,to,key,reason)=>links.set(from+'>'+to,{id:'@anchor:'+from+':'+to,from,to,type:'@semantic',strength:1,semanticAnchor:true,membershipLink:true,mainTag:key,summary:reason,reason,sources:[]});for(const n of nodes){for(const d of n.navigationDomains){const key='@major:'+encodeURIComponent(d.id),id='@major:'+kind+':'+d.id;core(id,d.id==='pending-semantic'&&typeof tr==='function'?tr(d.name):d.name,key);if(n.navigationProjects?.length){for(const p of n.navigationProjects){const pid='@project:'+kind+':'+p.id;core(pid,p.name,'@project:'+encodeURIComponent(p.id),{isProjectTag:true,projectId:p.id,domainKeys:[]});const c=cores.get(pid);if(!c.domainKeys.includes(key))c.domainKeys.push(key);edge(id,pid,key,'语义大类下的稳定项目引用');edge(pid,n.id,key,'同一项目内容；项目实体不复制');}}else edge(id,n.id,key,d.basis==='pending'?'待语义归纳；保留原细标签':'无项目内容直接保留在大类中');}}const all=[...edges,...links.values()],degrees=effectiveDegrees(all);for(const c of cores.values()){c.domainConnectionCount=degrees[c.id]||0;c.heat=mainTagHeat(c.domainConnectionCount);}return {nodes:[...cores.values(),...nodes],edges:all,positions:seeds};}
 
 // Render-only distance-sampled histories; no writes to layout or knowledge data.
 export class MotionTrails {
@@ -1910,13 +1910,14 @@ export class Network {
       const el = document.createElement("button");
       el.type = "button";
       el.className = "graph-edge-label";
-      const reason = edge.summary || edge.reason || "合成连边 · 绘制试验";
+      const rawReason = edge.summary || edge.reason || "合成连边 · 绘制试验";
+      const reason = edge.semanticAnchor ? tr(rawReason) : rawReason;
       el.textContent = shortNodeLabel({title:reason},24);
       el.title =
         (types.find((t) => t.id === edge.type)?.name || "关系") +
         "：" +
         (edge.reason || reason);
-      el.setAttribute("aria-label", "连接原因：" + reason);
+      el.setAttribute("aria-label", tr("连接原因：") + reason);
       el.onclick = () => {
         if(edge.membershipLink){this.onMainTag?.(edge.mainTag);return;}
         this.focusEdge = edge.id;

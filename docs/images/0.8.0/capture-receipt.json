@@ -1,16 +1,18 @@
 {
   "version": "0.8.0",
-  "baseCommit": "f86b11e2bbcffd60ce7f3f3d7c88b6c3f97569ad",
-  "capturedAt": "2026-10-26T06:45:32.598Z",
+  "supersedes": "Rejected seven-image presentation",
+  "capturedOn": "2026-10-26",
   "actualApplication": true,
   "imageEditing": false,
   "syntheticText": true,
-  "anonymizedGeometry": true,
-  "originalIdentifiersIncluded": false,
+  "syntheticRelationshipExplanations": true,
+  "anonymizedTopology": true,
+  "originalPrivateIdentifiersIncluded": false,
   "privateContentIncluded": false,
   "modelCalls": 0,
-  "processingEnabled": false,
+  "analysisEnabled": false,
   "networkAnimationPaused": true,
+  "focusView": "Real reversible UI control; hides display diagnostics only",
   "performanceBenchmark": false,
   "fixtureRecords": {
     "vault": 372,
@@ -18,56 +20,90 @@
     "skill": 2743,
     "concept": 297
   },
-  "knowledgeDisplayedNodes": 11661,
-  "scope": "Seven captured English views, not every application state",
+  "scope": "Twelve pictured views; not every application state",
   "files": [
     {
-      "file": "01-knowledge-network.jpg",
-      "width": 1600,
-      "height": 1000,
-      "sha256": "3263aeb80f2051efc16d5833cb25e14451d15a7f7b34ba66cc067f0377e6386b",
-      "visuallyReviewed": true
-    },
-    {
       "file": "02-knowledge-directory.jpg",
-      "width": 1600,
-      "height": 1000,
-      "sha256": "ec0adcb961e1c588922c031d4852e865392537cb98ff6d35875203a764efa926",
+      "width": 1800,
+      "height": 1009,
+      "sha256": "4b5e2591380767349d138243c28c38057b6ecac756e40af1e153ecdaf0140a69",
       "visuallyReviewed": true
     },
     {
       "file": "03-vault-source.jpg",
-      "width": 1600,
-      "height": 1000,
-      "sha256": "67708aa917b5cea1f60e5658b9733d0a32336de81b8dc1d4cff046217546f770",
+      "width": 1800,
+      "height": 1009,
+      "sha256": "86bfb9295cd1ff07d5a136aa912be91e646a57deae7ff8dcaea3ff2db5d05db8",
       "visuallyReviewed": true
     },
     {
       "file": "04-knowledge-content.jpg",
-      "width": 1600,
-      "height": 1000,
-      "sha256": "034d74a9307f9c70ed41b870d25a7977d6c567c700a7297989ef5c9a8bf84c40",
+      "width": 1800,
+      "height": 1009,
+      "sha256": "f7dd2ead5cae0a421f8726f27f94be27937a384bdcf3a70f39794254ca8778d6",
       "visuallyReviewed": true
     },
     {
       "file": "05-skill-prompt.jpg",
-      "width": 1600,
-      "height": 1000,
-      "sha256": "f4cf8e8396c33b3f6315a915778e649043eba9aa50e1cdfcd3aa2dfaeb310cfc",
+      "width": 1800,
+      "height": 1009,
+      "sha256": "6bd1944c3ec6be724b50ce80e2a009cf8b4a306bf227977b048fb6f1964642fa",
       "visuallyReviewed": true
     },
     {
       "file": "06-concept.jpg",
-      "width": 1600,
-      "height": 1000,
-      "sha256": "5e20808c0452118cb240382178f5339b9c94b5e50f66efdc87dfd96196eb4c47",
+      "width": 1800,
+      "height": 1009,
+      "sha256": "0aed86da2c088907509b168f9a1482cd8044fcac22e8bc940c5401ea889c9924",
       "visuallyReviewed": true
     },
     {
       "file": "07-import.jpg",
-      "width": 1600,
-      "height": 1000,
-      "sha256": "741ee586b234097dac956d525a1c8e793dfc68f4a43390dbe30a0de4f6c46a35",
+      "width": 1800,
+      "height": 1009,
+      "sha256": "bd80b1ec44815b63cad008c2a82df13d79a7d6f23d86ae45cc4083496a13f6ea",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "08-vault-network.jpg",
+      "width": 1800,
+      "height": 1009,
+      "sha256": "2b9f41415392a43653e4ad3f6e1fc1561eb64009a42ead66ab05400258102bf8",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "09-skill-network.jpg",
+      "width": 1800,
+      "height": 1009,
+      "sha256": "14e335513abb37d9012a5962165de4b646decdf54a487194f1009e88f6bac046",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "10-concept-network.jpg",
+      "width": 1800,
+      "height": 1009,
+      "sha256": "d6c75b160097fce460db2fc0104e77b7006d56bc99075f5ad13191a54f0bfe1f",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "11-knowledge-connections.jpg",
+      "width": 1800,
+      "height": 1009,
+      "sha256": "a022e3712d810ff80cc1cab7f3e63cd25a9ebe07124dd06987423aeafd39e9a2",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "12-processing-controls.jpg",
+      "width": 1800,
+      "height": 1009,
+      "sha256": "192e7efda2dc9b8ef626920e6023510762f89d7e6e55cc3af7c9197b661b0b18",
+      "visuallyReviewed": true
+    },
+    {
+      "file": "14-model-configuration.jpg",
+      "width": 1800,
+      "height": 1009,
+      "sha256": "30f59cd277259a4b539459de40840fabfa692df0c2ba6b03af15e281db2e88c3",
       "visuallyReviewed": true
     }
   ]

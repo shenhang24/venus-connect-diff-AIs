@@ -5,6 +5,7 @@ import {initWorkspaceControls} from '/workspace-controls.js';
 import { tr, initializeLanguage, uiLocale, uiError, heatText } from '/i18n.js';
 async function renderLayerControls(host,sourceId,helpers){try{const module=await import('/layer-controls.js');return module.renderLayerControls(host,sourceId,{...helpers,api:(route,data)=>helpers.api(route,route==='layers/start'&&pendingLayerProvider?{...data,connection:pendingLayerProvider}:data)});}catch{if(host?.isConnected)host.textContent=tr('四层处理入口将在安全加载新版后台后可用。');}}
 let networkAnimationPaused=false;
+document.querySelector('#focus-view').onclick=()=>{const active=document.body.classList.toggle('focus-view');document.querySelector('#focus-view').setAttribute('aria-pressed',String(active));};
 let layerSourceId=null;
 let pendingLayerProvider=null;
 await initializeLanguage();
@@ -917,7 +918,7 @@ function jobsDialog() {
   const counts=state.jobs.reduce((c,j)=>(c[j.status]=(c[j.status]||0)+1,c),{});
   modal(
     tr("自动处理进度"),
-    '<section id="processing-overview" role="status" aria-live="polite">'+processingDetailsHTML()+'</section>'+activityHTML()+'<div><strong>'+tr('联合提取队列')+' · '+esc(task.status)+'</strong><p>'+esc(task.current)+'</p><p>'+esc(task.progress)+'</p><p>'+esc(task.stage)+'</p>'+(task.problem?'<p>'+esc(task.problem)+'</p>':'')+'</div>'+activeFilesHTML()+
+    '<section id="processing-overview" role="status" aria-live="polite">'+processingDetailsHTML()+'</section>'+activityHTML()+'<div class="processing-queue-summary"><strong>'+tr('联合提取队列')+' · '+esc(task.status)+'</strong><p>'+esc(task.current)+'</p><p>'+esc(task.progress)+'</p><p>'+esc(task.stage)+'</p>'+(task.problem?'<p>'+esc(task.problem)+'</p>':'')+'</div>'+activeFilesHTML()+
       tr('<p class="subtle">流程：导入原文 → 分段联合分析（知识提取 / 关系比较 / 主分类归纳 / 技能整合）→ 校验依据并落盘 → 下一段或下一篇。存量主分类随现有调用分批回填。最多五份文件并行，每份内部按段续接，无需逐篇启动。</p>')+
       '<div class="analysis-overview"><strong>'+(a.completed||0)+' / '+(a.total||0)+tr(' 篇已完成</strong><span>已读 ')+(a.segments||0)+tr(' 段 · 后续按顺序 ')+(counts.queued||0)+tr(' · 手动暂停 ')+(counts.paused||0)+tr(' · 重试 ')+(a.retrying||0)+tr(' · 实际失败 ')+(a.needsReview||0)+tr(' · 有核对说明 ')+(a.withNotes||0)+'</span></div>'+
       (a.mainTagProgress?'<p class="metric">'+tr('主分类覆盖 ')+a.mainTagProgress.covered+'/'+a.mainTagProgress.total+' · '+tr('待归纳 ')+(a.mainTagProgress.total-a.mainTagProgress.reviewed)+' · '+tr('依据不足 ')+a.mainTagProgress.unresolved+'</p>':'')+
@@ -981,7 +982,7 @@ async function mcpDialog(){
 async function providerDialog(){
   let info;try{const response=await fetch('/api/analysis-provider');if(!response.ok)throw Error('当前后台尚未加载模型接入接口；现有分析未改动。接口会在下一次正常启动后可用。');info=await response.json();}catch(error){toast(error.message);return;}
   const c=info.saved;
-  modal(tr('模型与本地 AI 接入'),'<p class="subtle">'+esc(tr('仅保存下次后台启动使用的配置，不切换或终止当前分析。本地模式只连接回环地址，不会自动发送到云端。'))+'</p><p>'+esc(tr('当前：')+info.active.provider+' · '+(info.active.model||tr('模型未显式指定'))+' · '+(info.active.reasoningEffort||tr('推理强度未显式指定')))+'</p><label class="field">'+tr('接入方式')+'<select name="provider" id="provider-kind">'+[['codex','Codex CLI'],['http','HTTP / OpenAI 兼容'],['gemini','Gemini Interactions'],['local','本地 AI / OpenAI 兼容']].map(([id,label])=>'<option value="'+id+'"'+(c.provider===id?' selected':'')+'>'+esc(tr(label))+'</option>').join('')+'</select></label>'+[['model','模型名',c.model],['endpoint','服务基础地址（本地只允许 localhost / 127.0.0.1 / ::1）',c.endpoint],['keyEnv','密钥环境变量名（不填写密钥本身）',c.keyEnv],['reasoningEffort','推理强度（留空使用模型默认）',c.reasoningEffort]].map(([name,label,value])=>'<label class="field">'+esc(tr(label))+'<input name="'+name+'" value="'+esc(value)+'" autocomplete="off"></label>').join('')+'<div class="two-col">'+[['chunkCharacters','每段原文字符',c.chunkCharacters,1000,40000],['maxInputCharacters','总输入字符预算',c.maxInputCharacters,8000,2000000],['maxOutputTokens','输出 token 上限',c.maxOutputTokens,512,64000],['candidateLimit','每轮关联候选上限',c.candidateLimit,0,44],['candidateExcerptCharacters','候选摘录字符上限',c.candidateExcerptCharacters,200,8000],['mainTagCandidateLimit','每轮分类补全候选上限',c.mainTagCandidateLimit,0,20]].map(([name,label,value,min,max])=>'<label class="field">'+esc(tr(label))+'<input type="number" name="'+name+'" min="'+min+'" max="'+max+'" value="'+value+'" required></label>').join('')+'</div><label class="field">'+tr('结构化输出')+'<select name="format"><option value="schema"'+(c.format==='schema'?' selected':'')+'>JSON Schema</option><option value="json"'+(c.format==='json'?' selected':'')+'>JSON（兼容模式）</option></select></label><p class="metric">'+esc(tr(c.status))+tr('。这里不会测试连接或调用模型。原文会分段完整处理，不会静默截断。')+'</p>',async form=>{await api('analysis-provider',Object.fromEntries(form));toast(tr('配置已保存，仅下次后台启动生效；当前分析保持原接入'));});
+  modal(tr('模型与本地 AI 接入'),'<p class="subtle">'+esc(tr('仅保存下次后台启动使用的配置，不切换或终止当前分析。本地模式只连接回环地址，不会自动发送到云端。'))+'</p><p>'+esc(tr('当前：')+info.active.provider+' · '+(info.active.model||tr('模型未显式指定'))+' · '+(info.active.reasoningEffort||tr('推理强度未显式指定')))+'</p><label class="field">'+tr('接入方式')+'<select name="provider" id="provider-kind">'+[['codex','Codex CLI'],['http','HTTP / OpenAI 兼容'],['gemini','Gemini Interactions'],['local','本地 AI / OpenAI 兼容']].map(([id,label])=>'<option value="'+id+'"'+(c.provider===id?' selected':'')+'>'+esc(tr(label))+'</option>').join('')+'</select></label>'+[['model','模型名',c.model],['endpoint','服务基础地址（本地只允许 localhost / 127.0.0.1 / ::1）',c.endpoint],['keyEnv','密钥环境变量名（不填写密钥本身）',c.keyEnv],['reasoningEffort','推理强度（留空使用模型默认）',c.reasoningEffort]].map(([name,label,value])=>'<label class="field">'+esc(tr(label))+'<input name="'+name+'" value="'+esc(value)+'" autocomplete="off"></label>').join('')+'<div class="two-col">'+[['chunkCharacters','每段原文字符',c.chunkCharacters,1000,40000],['maxInputCharacters','总输入字符预算',c.maxInputCharacters,8000,2000000],['maxOutputTokens','输出 token 上限',c.maxOutputTokens,512,64000],['candidateLimit','每轮关联候选上限',c.candidateLimit,0,44],['candidateExcerptCharacters','候选摘录字符上限',c.candidateExcerptCharacters,200,8000],['mainTagCandidateLimit','每轮分类补全候选上限',c.mainTagCandidateLimit,0,20]].map(([name,label,value,min,max])=>'<label class="field">'+esc(tr(label))+'<input type="number" name="'+name+'" min="'+min+'" max="'+max+'" value="'+value+'" required></label>').join('')+'</div><label class="field">'+tr('结构化输出')+'<select name="format"><option value="schema"'+(c.format==='schema'?' selected':'')+'>JSON Schema</option><option value="json"'+(c.format==='json'?' selected':'')+'>JSON (compatibility mode)</option></select></label><p class="metric">'+esc(tr(c.status))+tr('。这里不会测试连接或调用模型。原文会分段完整处理，不会静默截断。')+'</p>',async form=>{await api('analysis-provider',Object.fromEntries(form));toast(tr('配置已保存，仅下次后台启动生效；当前分析保持原接入'));});
   $('#provider-kind').onchange=e=>{if(e.target.value==='local'){const form=e.target.form;for(const [key,value]of Object.entries({chunkCharacters:6000,maxInputCharacters:48000,maxOutputTokens:4096,candidateLimit:6,candidateExcerptCharacters:1000,mainTagCandidateLimit:2}))form.elements[key].value=value;form.elements.endpoint.value='';form.elements.keyEnv.value='';}};
 }
 async function historyDialog(n) {
@@ -1361,7 +1362,8 @@ let graphData;
 function updateGraph() {
   if (!graph) return;
   const kind = view.replace("-network", "");
-  const {nodes,edges}=projectLayerRelations(state.nodes,state.relations,kind);
+  const {nodes:layerNodes,edges}=projectLayerRelations(state.nodes,state.relations,kind);
+  const nodes=layerNodes.map(n=>({...n,navigationDomains:n.navigationDomains?.map(d=>d.id==='pending-semantic'?{...d,name:tr('待语义归纳')}:d)}));
   graphData = {
     nodes,
     edges,
@@ -1472,6 +1474,9 @@ function renderNetwork() {
     const fit=$('#fit-graph');fit.insertAdjacentHTML('beforebegin','<button type="button" id="pause-network" aria-pressed="'+networkAnimationPaused+'">'+esc(tr(networkAnimationPaused?'继续动画':'暂停动画'))+'</button>');
     $('#pause-network').onclick=()=>{networkAnimationPaused=graph.setAnimationPaused(!networkAnimationPaused);$('#pause-network').setAttribute('aria-pressed',String(networkAnimationPaused));$('#pause-network').textContent=tr(networkAnimationPaused?'继续动画':'暂停动画');};
     $("#fit-graph").onclick = () => graph.fit();
+    $('#fit-graph').insertAdjacentHTML('beforebegin','<button type="button" id="zoom-in" aria-label="Zoom in">＋</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button>');
+    const zoomBy=factor=>{const offset=graph.camera.position.clone().sub(graph.controls.target),distance=Math.max(graph.controls.minDistance,Math.min(graph.controls.maxDistance,offset.length()*factor));graph.camera.position.copy(graph.controls.target).add(offset.setLength(distance));graph.controls.update();};
+    $('#zoom-in').onclick=()=>zoomBy(0.7);$('#zoom-out').onclick=()=>zoomBy(1.4);
     $("#node-locate").onchange = (e) => {
       if (e.target.value) graph.select(e.target.value);
       else graph.fit();

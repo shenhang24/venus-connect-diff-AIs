@@ -355,13 +355,14 @@ export class Network {
       const el = document.createElement("button");
       el.type = "button";
       el.className = "graph-edge-label";
-      const reason = edge.summary || edge.reason || "合成连边 · 绘制试验";
+      const rawReason = edge.summary || edge.reason || "合成连边 · 绘制试验";
+      const reason = edge.semanticAnchor ? tr(rawReason) : rawReason;
       el.textContent = shortNodeLabel({title:reason},24);
       el.title =
         (types.find((t) => t.id === edge.type)?.name || "关系") +
         "：" +
         (edge.reason || reason);
-      el.setAttribute("aria-label", "连接原因：" + reason);
+      el.setAttribute("aria-label", tr("连接原因：") + reason);
       el.onclick = () => {
         if(edge.membershipLink){this.onMainTag?.(edge.mainTag);return;}
         this.focusEdge = edge.id;

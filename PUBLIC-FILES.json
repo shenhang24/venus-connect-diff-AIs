@@ -1,6 +1,6 @@
 {
   "version": "0.8.0",
-  "publicBaseCommit": "0d42ef216c8ef0f5d9830ce155d23584482d2e36",
+  "publicBaseCommit": "d84e18a8ac11abd7e33fa389bad7a2b3c401b027",
   "privateContentScan": "Bounded allowlist and sensitive-pattern scan; not a complete security audit.",
   "excluded": [
     "data",
@@ -71,13 +71,13 @@
     },
     {
       "path": "PUBLIC-DOCUMENTS.json",
-      "bytes": 1263,
-      "sha256": "cb7f75e4771ef7e6d737a0e2828cd19e06f2a06a65436d65993d304fb4fd8ac1"
+      "bytes": 1238,
+      "sha256": "e273736b32e7f264932a511084059f2345408e247e81702cc5f99789f9c308bd"
     },
     {
       "path": "README.md",
-      "bytes": 5622,
-      "sha256": "f871cebd66019b72670344ab2e0c53d3141e391af3b3ecd7759a030ea33b6996"
+      "bytes": 18071,
+      "sha256": "c91c68c1c58eb1d10abff5934960e16073d6b5374ba2e04f60c4dee75b14dd15"
     },
     {
       "path": "RELEASE-NOTES.md",
@@ -265,11 +265,6 @@
       "sha256": "88bbbf1bc4f89d909a872de80db47318ce40d8631fcd6fddd076d848e054c812"
     },
     {
-      "path": "docs/README-zh.md",
-      "bytes": 2158,
-      "sha256": "d455ab913e36fa0a5b4756f1af2850fd90e02aaa7c15b343066905c43dbba9d2"
-    },
-    {
       "path": "docs/RELEASE-REVIEW.md",
       "bytes": 9500,
       "sha256": "7d499c47af0e28c2d5e16b8ef5978ea6a572c244c2b8dfe13f6e7730195f7a81"
@@ -281,8 +276,8 @@
     },
     {
       "path": "docs/SCREENSHOTS-0.8.0.md",
-      "bytes": 2131,
-      "sha256": "318eacfba0916e1217d50a6c0f3114487330fca6ce45a28c0ba8f6e126df6058"
+      "bytes": 2677,
+      "sha256": "c23732928c04869ec9473e9b90f967ae5bf661d21ccf0048e23b766b21b2a56a"
     },
     {
       "path": "docs/images/0.6.0/01-vault-sources.jpg",
@@ -365,44 +360,69 @@
       "sha256": "480ea784a18a04c38b97b17e502e0b31be946eb31835519c6f57ef87a3afadc6"
     },
     {
-      "path": "docs/images/0.8.0/01-knowledge-network.jpg",
-      "bytes": 76449,
-      "sha256": "3263aeb80f2051efc16d5833cb25e14451d15a7f7b34ba66cc067f0377e6386b"
-    },
-    {
       "path": "docs/images/0.8.0/02-knowledge-directory.jpg",
-      "bytes": 65976,
-      "sha256": "ec0adcb961e1c588922c031d4852e865392537cb98ff6d35875203a764efa926"
+      "bytes": 64267,
+      "sha256": "4b5e2591380767349d138243c28c38057b6ecac756e40af1e153ecdaf0140a69"
     },
     {
       "path": "docs/images/0.8.0/03-vault-source.jpg",
-      "bytes": 116158,
-      "sha256": "67708aa917b5cea1f60e5658b9733d0a32336de81b8dc1d4cff046217546f770"
+      "bytes": 123726,
+      "sha256": "86bfb9295cd1ff07d5a136aa912be91e646a57deae7ff8dcaea3ff2db5d05db8"
     },
     {
       "path": "docs/images/0.8.0/04-knowledge-content.jpg",
-      "bytes": 110969,
-      "sha256": "034d74a9307f9c70ed41b870d25a7977d6c567c700a7297989ef5c9a8bf84c40"
+      "bytes": 133305,
+      "sha256": "f7dd2ead5cae0a421f8726f27f94be27937a384bdcf3a70f39794254ca8778d6"
     },
     {
       "path": "docs/images/0.8.0/05-skill-prompt.jpg",
-      "bytes": 170421,
-      "sha256": "f4cf8e8396c33b3f6315a915778e649043eba9aa50e1cdfcd3aa2dfaeb310cfc"
+      "bytes": 164677,
+      "sha256": "6bd1944c3ec6be724b50ce80e2a009cf8b4a306bf227977b048fb6f1964642fa"
     },
     {
       "path": "docs/images/0.8.0/06-concept.jpg",
-      "bytes": 130486,
-      "sha256": "5e20808c0452118cb240382178f5339b9c94b5e50f66efdc87dfd96196eb4c47"
+      "bytes": 124262,
+      "sha256": "0aed86da2c088907509b168f9a1482cd8044fcac22e8bc940c5401ea889c9924"
     },
     {
       "path": "docs/images/0.8.0/07-import.jpg",
-      "bytes": 32320,
-      "sha256": "741ee586b234097dac956d525a1c8e793dfc68f4a43390dbe30a0de4f6c46a35"
+      "bytes": 38078,
+      "sha256": "bd80b1ec44815b63cad008c2a82df13d79a7d6f23d86ae45cc4083496a13f6ea"
+    },
+    {
+      "path": "docs/images/0.8.0/08-vault-network.jpg",
+      "bytes": 214338,
+      "sha256": "2b9f41415392a43653e4ad3f6e1fc1561eb64009a42ead66ab05400258102bf8"
+    },
+    {
+      "path": "docs/images/0.8.0/09-skill-network.jpg",
+      "bytes": 206893,
+      "sha256": "14e335513abb37d9012a5962165de4b646decdf54a487194f1009e88f6bac046"
+    },
+    {
+      "path": "docs/images/0.8.0/10-concept-network.jpg",
+      "bytes": 135045,
+      "sha256": "d6c75b160097fce460db2fc0104e77b7006d56bc99075f5ad13191a54f0bfe1f"
+    },
+    {
+      "path": "docs/images/0.8.0/11-knowledge-connections.jpg",
+      "bytes": 183548,
+      "sha256": "a022e3712d810ff80cc1cab7f3e63cd25a9ebe07124dd06987423aeafd39e9a2"
+    },
+    {
+      "path": "docs/images/0.8.0/12-processing-controls.jpg",
+      "bytes": 56103,
+      "sha256": "192e7efda2dc9b8ef626920e6023510762f89d7e6e55cc3af7c9197b661b0b18"
+    },
+    {
+      "path": "docs/images/0.8.0/14-model-configuration.jpg",
+      "bytes": 69143,
+      "sha256": "30f59cd277259a4b539459de40840fabfa692df0c2ba6b03af15e281db2e88c3"
     },
     {
       "path": "docs/images/0.8.0/capture-receipt.json",
-      "bytes": 2123,
-      "sha256": "f9659dd55a375b353fe037185a7c8b2609a19a772fd72cbd382cf893d5ba8a63"
+      "bytes": 3249,
+      "sha256": "f6db8f59a843beac061668320cc06702ebdc7dcd223bef857e94d7c79fe54321"
     },
     {
       "path": "docs/images/01-vault-sources.jpg",
@@ -501,8 +521,8 @@
     },
     {
       "path": "public/app.js",
-      "bytes": 136379,
-      "sha256": "cc8bdc77b61da1a042cced26bf3c526248dda513844cf9b84fba6eb05c57f34e"
+      "bytes": 137361,
+      "sha256": "a4820fbd58b4ebd48aafce291a4859a17a95d1507afe21ba2bdbd3281195d5b7"
     },
     {
       "path": "public/body-avoidance.js",
@@ -521,18 +541,18 @@
     },
     {
       "path": "public/graph.js",
-      "bytes": 176449,
-      "sha256": "d72df7f5a4d5d86306e496d90c92f419c906848bd8d15cabeb26bc35784a924d"
+      "bytes": 176587,
+      "sha256": "68ef67cd53226038ddfdc01fbf52de33d4ea8c20df05d85e78e4a773317183d3"
     },
     {
       "path": "public/i18n.js",
-      "bytes": 77259,
-      "sha256": "f57e71ce642e016a78fe12afe9e9a54a3f240b7c1f64a94ed0e650029cf1c4fa"
+      "bytes": 77822,
+      "sha256": "c01425f01f057bb2d7d4d614ca7ef2d8edb4fe99979b734b51d7bcb933867bf8"
     },
     {
       "path": "public/index.html",
-      "bytes": 9358,
-      "sha256": "a4025aea424b355b86f2b4f2a2d5af1fec9140bf5338fee4242561300ed6a11f"
+      "bytes": 9514,
+      "sha256": "09439fd31bf39965d0ea04b6bd6f590f54f836d1f65cabd3a50a10d94ad00d21"
     },
     {
       "path": "public/knowledge-view.js",
@@ -551,8 +571,8 @@
     },
     {
       "path": "public/main-tags.js",
-      "bytes": 5906,
-      "sha256": "bfa0f86cc029aa09376c31e6b5678166d6bfb3e6d4f416616d6310c2b00aa2b4"
+      "bytes": 5967,
+      "sha256": "7709fa66a03279dd82a9ec27bc53306bdde6f7de9d59e6edb34813bb4c5f3b3e"
     },
     {
       "path": "public/motion-trails.js",
@@ -586,8 +606,8 @@
     },
     {
       "path": "public/style.css",
-      "bytes": 50645,
-      "sha256": "dfd0399ee8b54deca6d9f38b26f92cba434d938a25d3c34c294a1bd90fc65611"
+      "bytes": 51139,
+      "sha256": "153fe59a7336202c52843da5b28635b2f8c085ba927fb5af996aac440fcdb8f9"
     },
     {
       "path": "public/taxonomy.js",
@@ -771,8 +791,8 @@
     },
     {
       "path": "src/graph-view.js",
-      "bytes": 46337,
-      "sha256": "1cc6f953646ccded02929e2db80206f74877f9ddaba4e8cda4c2c99ff7a2178e"
+      "bytes": 46414,
+      "sha256": "913bbacd1c4d0368e0c72540e432386acd2a29121f2b7f076c9c64cbf87879af"
     },
     {
       "path": "src/heat.mjs",

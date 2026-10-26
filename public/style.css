@@ -1653,3 +1653,8 @@ dialog { width:min(620px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-he
 .localized-file-picker{display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}.localized-file-picker+input[hidden],input#md-file[hidden]{display:none!important}.localized-file-picker [aria-live]{overflow-wrap:anywhere;color:var(--muted)}
 
 .localized-file-picker button{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:6px 10px}
+
+/* A reversible reading option. It hides diagnostics, never pauses background work. */
+body.focus-view .sidebar-bottom,body.focus-view .graph-camera,body.focus-view .graph-task-float,body.focus-view .graph-stats,body.focus-view #ribbon-task-status{display:none!important}
+#focus-view[aria-pressed="true"]{background:var(--accent);color:var(--bg)}
+body.focus-view #processing-overview,body.focus-view #modal-body>.task-activity,body.focus-view .processing-queue-summary{display:none!important}
