@@ -10,7 +10,7 @@ test('star names are hidden until that star is clicked; normal planet labels kee
 });
 
 test('网络标题去掉导入标识与重复分支前缀，保留主题',()=>{
-  assert.equal(shortNodeLabel({title:'分支 · 分支 · 分支 · 新yumeiren项目'}),'新yumeiren项目');
+  assert.equal(shortNodeLabel({title:'分支 · 分支 · 分支 · 示例项目'}),'示例项目');
   assert.equal(shortNodeLabel({path:'Vault/GPT-1234567890abcdef-战斗节奏设计.md'}),'战斗节奏设计');
   assert.equal(shortNodeLabel({title:'2026-09-29 关于项目框架设计'}),'项目框架设计');
 });

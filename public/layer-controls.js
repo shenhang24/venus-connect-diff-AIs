@@ -4,7 +4,7 @@ export async function renderLayerControls(host,sourceId,{tr,esc,api,toast}){
  host.innerHTML='<p class="metric">'+esc(tr('正在读取四层独立进度…'))+'</p>';
  try{
   const response=await fetch('/api/layers/status?sourceId='+encodeURIComponent(sourceId));if(!response.ok)throw Error(tr('当前后台尚未加载四层处理入口；已保存成果保留，请在安全加载新版后台后使用。'));
-  const data=await response.json();if(!host.isConnected)return;const source=data.sources[0],readAt=Date.now(),time=value=>value?new Date(value).toLocaleString():tr('未提供');
+  const data=await response.json();if(!host.isConnected)return;if(data.available===false){host.innerHTML='<p class="metric">'+esc(tr(data.reason))+'</p>';return;}const source=data.sources[0],readAt=Date.now(),time=value=>value?new Date(value).toLocaleString():tr('未提供');
   host.innerHTML='<h3>'+esc(tr('资料处理进度'))+'</h3><p class="metric">'+esc(source.title)+' · '+tr('状态读取：')+time(readAt)+'</p><div class="layer-grid">'+source.layers.map(p=>{
    const failed=p.status==='review',paused=['paused','skipped'].includes(p.status),busy=['working','queued'].includes(p.status);
    const status=failed?'失败，需核对':p.status==='skipped'?'已跳过，未完成':p.status==='done'?'已完成':p.status==='working'?'正在处理':p.status==='queued'?'排队中':p.status==='paused'?'已暂停':'尚未处理';

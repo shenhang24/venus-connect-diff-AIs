@@ -1,3 +1,4 @@
+import {readNavigationIndex} from './navigation-index.mjs';
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -65,9 +66,9 @@ export class Store {
     atomic(this.file, JSON.stringify(this.state, null, 2));
   }
   archive(rel, raw) {
-    // Aggregate tables keep their current contents, without full historical copies.
+    // Classification aggregates retain their current contents; relation edits keep rollback history.
     const normalized=rel.replaceAll('\\','/');
-    if(normalized==='.venus/classifications.md'||normalized==='知识点/_关系.md')return;
+    if(normalized==='.venus/classifications.md')return;
     const dir = path.join(this.meta, "history", hash(rel).slice(0, 16));
     fs.mkdirSync(dir, { recursive: true });
     atomic(
@@ -278,7 +279,8 @@ export class Store {
         ? hash(fs.readFileSync(rel))
         : null,
       features:{classification:true,dynamicLayout:true,activityHeat:true,continuousMerge:true,memorySnapshot:true,incrementalAnalysisReads:true,inlineTitleEdit:true,incrementalImportMetadata:true,concepts:true,conceptAdmission:true,skillMethods:true,knowledgeDedupeThreshold:.95},
-      version:'0.7.0',
+      version:'0.8.0',
+      semanticNavigation:readNavigationIndex(this.meta),
       analysis:this.analyzer?.status()||{enabled:false,running:false,total:this.nodes.filter(n=>n.kind==='vault').length},
       revision: this.state.revision,
       nodes: summary ? this.nodes.map(({body, ...node}) => ({...node, bodyLength:body.length,
@@ -312,7 +314,7 @@ export class Store {
         fail("来源引文必须逐字存在于原文：" + s.id);
     }
   }
-  import({ name, body, originId='', sourceDate='', originVersion='' }) {
+  import({ name, body, originId='', sourceDate='', originVersion='', automatic=false }) {
     if (typeof body !== "string" || !body.trim()) fail("原文不能为空");
     if (body.length > 16e6) fail("单份资料最多 1600 万字符");
     if(typeof originId!=='string'||originId.length>300||typeof originVersion!=='string'||originVersion.length>120||typeof sourceDate!=='string'||(sourceDate&&!/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(sourceDate)))fail('来源、日期或版本格式无效');
@@ -324,12 +326,14 @@ export class Store {
         entries.push({originId,sourceDate:sourceDate||null,originVersion:originVersion||null,receivedAt:new Date().toISOString(),contentHash:hash(body),previousVersionNodeId:prior?.id||null});this.save();this.scan({paths:[node.path]});
       }
     };
+    if(typeof automatic!=='boolean')fail('自动来源标记无效');
     const digest = hash(body);
+    if((automatic||originId)&&Object.values(this.state.deletedSources||{}).some(t=>t.bodyHash===digest&&(automatic||t.originIds?.includes(originId))))fail('该来源版本已由用户删除；自动同步不会重新导入。需要恢复时请手动导入原文。',410);
     if (this.state.imports[digest]) {
       const existing = this.nodes.find(
         (n) => n.id === this.state.imports[digest],
       );
-      if (existing){remember(existing);return {node:this.find(existing.id,{refresh:false}),duplicate:true};}
+      if (existing && hash(this.find(existing.id,{refresh:false}).body)===digest){remember(existing);return {node:this.find(existing.id,{refresh:false}),duplicate:true};}
     }
     const safe =
       String(name || "未命名资料")
@@ -369,7 +373,10 @@ export class Store {
     if(typeof originId!=='string'||!originId||originId.length>300)fail('来源 ID 无效');const entries=this.state.handoffCheckpoints?.[hash(originId)]||[];
     return {originId,checkpoints:entries,latest:entries.at(-1)||null,platformSubscriptionConnected:false,rawTextRetained:true};
   }
+  rootSourceIds(references){const roots=new Set(),seen=new Set(),queue=(references||[]).map(s=>typeof s==='string'?s:s.id);while(queue.length){const id=queue.shift();if(seen.has(id))continue;seen.add(id);const n=this.nodeById.get(id);if(n?.kind==='vault'||!n){roots.add(id);continue;}queue.push(...(n.sources||[]).map(s=>s.id));}return [...roots];}
+  suppressedDerivation(input){const roots=this.rootSourceIds(input.sources);return Object.values(this.state.suppressedDerivations||{}).find(t=>t.kind===input.kind&&(t.id===input.id||t.generationKey&&t.generationKey===input.generationKey||t.bodyHash===hash(input.body||''))&&(t.rootSourceIds||this.rootSourceIds(t.sourceIds||[])).some(id=>roots.includes(id)));}
   upsert(input) {
+    if(this.suppressedDerivation(input))fail('该来源生成项已由用户删除，禁止自动重建',410);
     this.refreshForIds([...(this.nodeById?.has(input.id)?[input.id]:[]),...(Array.isArray(input.sources)?input.sources.map(s=>s.id):[])]);
     if (!["knowledge", "skill", "concept"].includes(input.kind))
       fail("只能写入 AI 知识点、AI 技能或概念");
@@ -420,6 +427,7 @@ export class Store {
     const rel = existing?.path || dirs[input.kind] + "/" + input.id + ".md";
     const m = {
       id: input.id,
+      ...(input.generationKey?{generationKey:input.generationKey}:{}),
       title: input.title,
       kind: input.kind,
       sources:input.kind==='knowledge'&&existing?[...new Map([...existing.sources,...input.sources].map(s=>[JSON.stringify(s),s])).values()]:input.kind==='skill'&&methodPolicy?.status==='user-confirmed'?[...new Map([...(existing?.sources||[]),...input.sources,{id:methodPolicy.sourceId,sourceHash:methodPolicy.sourceHash,quote:methodPolicy.recognitionQuote,locator:methodPolicy.recognitionLocator}].map(s=>[JSON.stringify(s),s])).values()]:input.sources,
@@ -577,6 +585,8 @@ export class Store {
       dimensions: r.dimensions || {},
       ...(r.managedBy === 'automatic' ? {managedBy:'automatic'} : {}),
     };
+    const relationFile=path.join(this.root,"知识点/_关系.md");
+    if(fs.existsSync(relationFile))this.archive("知识点/_关系.md",fs.readFileSync(relationFile,"utf8"));
     this.relations = this.relations.filter((x) => x.id !== id).concat(value);
     this.writeRelations();
     return value;

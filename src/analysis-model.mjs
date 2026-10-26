@@ -1,3 +1,4 @@
+import {NAVIGATION_SCHEMA,NAVIGATION_INSTRUCTIONS} from './semantic-navigation-producer.mjs';
 import {spawn, execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import fs from 'node:fs';
@@ -12,6 +13,7 @@ const arr=items=>({type:'array',items});
 const type=str;
 const mainTags=arr(obj({name:str,reason:str,quote:str}));
 export const analysisSchema=obj({
+  semanticNavigation:NAVIGATION_SCHEMA,
   concepts:conceptSchema.properties.concepts,
   unresolvedQuestions:conceptSchema.properties.unresolvedQuestions,
   summary:str,
@@ -29,7 +31,9 @@ export const analysisSchema=obj({
   issues:arr(str),
 });
 
+analysisSchema.properties.skills.items.properties.body.description='生成可直接复用的完整Prompt正文：明确任务/输入、操作步骤、输出合同、适用条件与负例。识别稳定实体或角色身份及共用风格/工作设定，变体只保存差异，本次请求仅增量合并；来源没有设定就明确缺失，不发明。事实、推断、冲突和未确认建议分开。不要仅描述用户能做什么或声称其掌握程度。实体/主题/层级/变体标签由你依内容主动理解提出，不能只按孤立词或标题匹配。';
 analysisSchema.description=currentMaterialPolicy;
+analysisSchema.properties.semanticNavigation.description=NAVIGATION_INSTRUCTIONS+" 与本次正文理解一起生成，只映射本次实际输出的语义标签。不得为此增加模型调用。";
 
 export function createCodexResolver({lookup=async()=>{
   if(process.env.VENUS_CODEX)return process.env.VENUS_CODEX;
@@ -67,11 +71,21 @@ export function createModelRunner(directory,options={}) {
     if(options.model)args.splice(3,0,'-m',options.model);
     if(options.reasoningEffort)args.splice(3,0,'-c','model_reasoning_effort='+JSON.stringify(options.reasoningEffort));
     const usage=new CodexUsageCollector(new UsageRequest(options.usageMeta||directory,{provider:'codex',family:options.usageFamily||'gpt',model:options.model}));
-    const child=(options.spawnImpl||spawn)(executable,args,{windowsHide:true,stdio:['pipe','pipe','pipe']});
-    child.once('spawn',()=>console.log('Venus analysis worker '+JSON.stringify({pid:child.pid,model:options.model||'unspecified',reasoningEffort:options.reasoningEffort||'unspecified'})));
-    let buffer='',last='',errors='';
-    const timer=setTimeout(()=>{child.kill();reject(new Error('模型调用超过 12 分钟，稍后自动重试'));},12*60*1000);
-    const abort=()=>child.kill();
+    const notify=state=>{try{options.onWorkerState?.(state);}catch(error){try{fs.appendFileSync(path.join(directory,'worker-state-errors.jsonl'),JSON.stringify({at:new Date().toISOString(),state,error:error.message})+'\n');}catch{}console.error('Worker state persistence failed: '+error.message);}};
+    options.onWorkerState?.({pid:null,active:true,starting:true});
+    let child;try{child=(options.spawnImpl||spawn)(executable,args,{windowsHide:true,stdio:['pipe','pipe','pipe']});}catch(error){notify({pid:null,active:false,starting:false});usage.close('failed');return reject(error);}
+    if(Number.isInteger(child.pid))notify({pid:child.pid,active:true});
+    let started=Number.isInteger(child.pid)&&child.pid>0;
+    child.once('spawn',()=>{started=true;notify({pid:child.pid,active:true});console.log('Venus analysis worker '+JSON.stringify({pid:child.pid,model:options.model||'unspecified',reasoningEffort:options.reasoningEffort||'unspecified'}));});
+    let buffer='',last='',errors='',terminalError=null,terminationRequested=false;
+    const stop=()=>{
+      if(terminationRequested)return;
+      terminationRequested=true;
+      // A kill request is not an exit receipt. Keep the caller's lock until close.
+      try{child.kill();}catch(error){terminalError ||= error;}
+    };
+    const timer=setTimeout(()=>{terminalError ||= new Error('模型调用超过 12 分钟，稍后自动重试');stop();},options.timeoutMs??12*60*1000);
+    const abort=()=>stop();
     signal?.addEventListener('abort',abort,{once:true});
     child.stdout.on('data',chunk=>{
       buffer+=chunk.toString();
@@ -87,12 +101,18 @@ export function createModelRunner(directory,options={}) {
       }
     });
     child.stderr.on('data',chunk=>{errors=(errors+chunk.toString()).slice(-16000);});
-    child.on('error',error=>{usage.close('failed');clearTimeout(timer);reject(error);});
+    child.on('error',error=>{
+      terminalError ||= error;
+      if(started||Number.isInteger(child.pid)&&child.pid>0){stop();return;}
+      // A failed spawn has no child to wait for. Errors after spawn must wait.
+      notify({pid:null,active:false,starting:false});usage.close('failed');clearTimeout(timer);signal?.removeEventListener('abort',abort);reject(terminalError);
+    });
     child.on('close',code=>{
       if(buffer.trim())try{const event=JSON.parse(buffer);usage.accept(event);if(event.type==='item.completed'&&event.item?.type==='agent_message')last=event.item.text;}catch{}
-      usage.close(signal?.aborted?'cancelled':code===0?'completed':'failed');
+      notify({pid:child.pid,active:false});usage.close(signal?.aborted?'cancelled':code===0&&!terminalError?'completed':'failed');
       clearTimeout(timer);signal?.removeEventListener('abort',abort);
       if(signal?.aborted) return reject(new Error('ANALYSIS_CANCELLED'));
+      if(terminalError) return reject(terminalError);
       if(code!==0) return reject(new Error(('Codex '+code+': '+errors).slice(-4000)));
       try{resolve(JSON.parse(last));}catch{reject(new Error('模型未返回有效结构化结果：'+errors.slice(-2000)));}
     });

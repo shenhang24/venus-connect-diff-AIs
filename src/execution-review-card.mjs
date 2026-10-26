@@ -1,0 +1,23 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+const digest=text=>createHash('sha256').update(text).digest('hex');
+const read=file=>{try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return null;}};
+const excerpt=(text,start=0)=>({text:text.slice(start,start+480),start,end:Math.min(text.length,start+480),truncated:text.length>start+480});
+
+// Called only for the selected failure, never as a background library scan.
+export function buildExecutionReviewCard({root,work,current,error,kind,returns=[]}){
+ const ids=[...new Set([current?.id,...(current?.ids||[])].filter(Boolean))],sources=[];
+ for(const id of ids.slice(0,8)){
+  const candidates=returns.flatMap(receipt=>{const raw=read(path.join(work,'classification-returns',receipt.file));return (raw?.payload?.items||[]).filter(item=>item.id===id).map(item=>({receipt,raw,item}));}).sort((a,b)=>String(b.raw.returnedAt).localeCompare(String(a.raw.returnedAt)));
+  const selected=candidates[0],item=selected?.item,index=current?.ids?.indexOf(id),relative=current?.id===id?current.path:current?.paths?.[index];
+  let raw=null,body=null,sourceError=null;
+  if(relative){try{const file=path.resolve(root,relative),rel=path.relative(fs.realpathSync(root),fs.realpathSync(file));if(rel.startsWith('..')||path.isAbsolute(rel))throw Error('资料路径不在当前资料库内');raw=fs.readFileSync(file,'utf8');const meta=raw.match(/^<!-- venus:(.*?) -->\r?\n/s);body=meta?raw.slice(meta[0].length):raw;}catch(e){sourceError=e.message;}}
+  const start=item?.start??current?.start??0,end=item?.end??current?.end??body?.length??null,text=body?.slice(start,end)??null,original=item?.text??null;
+  const proposed=selected?.raw.result?.items?.find(value=>value.id===id),tags=(proposed?.tags||[]).slice(0,12).map(tag=>{const quote=typeof tag.quote==='string'?tag.quote:null,offset=quote&&text!=null?text.indexOf(quote):-1;return {name:tag.name,reason:tag.reason,quote:quote?.slice(0,480)||null,quoteTruncated:!!quote&&quote.length>480,originalLiteralMatch:!!quote&&original?.includes(quote)===true,currentLiteralMatch:text==null?null:!!quote&&offset>=0,locator:offset>=0?{start:start+offset,end:start+offset+quote.length}:null};});
+  sources.push({id,title:item?.title||body?.match(/^# (.+)$/m)?.[1]||relative||id,path:relative||null,currentHash:raw==null?null:digest(raw),requestSourceHash:item?.sourceHash||null,sourceHashMatches:raw==null||!item?.sourceHash?null:digest(raw)===item.sourceHash,range:{start,end,unit:'UTF-16'},excerpt:text==null?null:{...excerpt(text),start,end:Math.min(end,start+480)},missingSource:sourceError||(!relative?'当前失败记录缺少资料路径，无法展示原文；未猜测内容。':null),originalInputExcerpt:original==null?null:{...excerpt(original),start,end:Math.min(end,start+480)},judgment:proposed?.summary?.slice(0,1000)||null,tags,correction:selected?{requestHash:selected.receipt.requestHash,status:selected.receipt.correctionStatus,remaining:selected.receipt.correctionRemaining,attempts:selected.receipt.correctionAttempts}:null});
+ }
+ const spent=kind==='evidence'&&sources.some(source=>source.correction?.remaining===0),mismatched=sources.flatMap(source=>source.tags.filter(tag=>tag.currentLiteralMatch===false).map(tag=>tag.name));
+ const technical=['access','capacity','transient','budget'].includes(kind);
+ return {version:1,question:technical?'这是执行故障，不需要你判断资料含义。':'需要检查下列具体原文与保存判断是否一致。',why:kind==='evidence'&&mismatched.length?'标签“'+mismatched.join('、')+'”的模型引句无法在指定原文中逐字找到，因此这份判断没有通过保存准入。':kind==='access'?'已有模型连接或权限被拒绝，资料含义无需人工核对。':kind==='capacity'?'指定模型暂时没有可用容量，现有资料和结果已保留。':error?.message||'当前没有保留具体错误，系统不会要求你猜测核对内容。',diagnostic:error?.message||null,sources,automatic:{responsibility:'系统负责源哈希、逐字引文、保存读回与断点恢复，不把技术验收交给用户。',status:spent?'系统已完成逐字比对；该原返回的纠正次数已用完，不会重复调用模型。可明确隔离本份以继续其余资料，或停止当前任务。':kind==='transient'?'按持久预算执行有限重试':kind==='evidence'?'自动逐字比对；只可使用同一原返回尚未用过的一次纠正':kind==='capacity'?'保留结果并等待容量恢复，不盲目重试':kind==='access'?'等待已有连接或权限恢复，不绕过拒绝':'保留原文、返回和纠正记录，按具体失败检查',modelInvoked:false},userDecision:{required:kind==='access'||spent,question:spent?'纠正次数已用完。请选择保留本份为未完成并继续其余资料，或停止当前任务；不要求你手工判断引句。':kind==='access'?'已有模型连接能否恢复可用？':'当前无需你判断引文是否逐字一致；系统会自动检查。',options:spent?[{action:'defer-source',label:'保留本份未完成，继续其他资料',impact:'保留原文、错误引句和全部纠正记录；本份不计入完成。'},{action:'cancel',label:'停止当前任务',impact:'保留当前断点和结果，其他项目不受影响。'}]:kind==='access'?[{action:'open-connections',label:'检查已有连接',impact:'只打开已有连接设置；不创建密钥，也不修改资料。'},{action:'defer-source',label:'暂时隔离这份资料',impact:'保留原文和全部结果，继续其余资料；本份仍未完成。'},{action:'cancel',label:'停止当前任务',impact:'保留已保存断点，不取消其他项目。'}]:[]},limits:{sourcesShown:sources.length,totalSources:ids.length,excerptCharacters:480,missingQuotesAreNotInvented:true}};
+}

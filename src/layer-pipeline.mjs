@@ -1,7 +1,10 @@
+import {readNavigationIndex} from './navigation-index.mjs';
+import {consumeGeneratedNavigation} from './semantic-navigation-producer.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {nextChunk,rankCandidates} from './analyzer.mjs';
 import {hash} from './store.mjs';
+import {classificationExecutorActive} from './classification-lock.mjs';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 const write=(file,value)=>{fs.writeFileSync(file+'.tmp',JSON.stringify(value,null,2));fs.renameSync(file+'.tmp',file);};
 export class LayerPipeline {
@@ -59,6 +62,7 @@ export class LayerPipeline {
   this.save();
  }
  async tick(){
+  if(this.store.executionCoordinator?.starting||this.store.executionCoordinator?.workerPresent()||classificationExecutorActive(this.store.root)||this.store.executionCoordinator?.state.enabled&&this.store.executionCoordinator.state.desired!=='running')return;
   if(this.analyzer?.state.tasksPaused)return;
   const free=5-this.active.size-(this.analyzer?.active.size||0)-this.externalSlots();if(free<=0)return;
   const jobs=Object.entries(this.state.entries).filter(([key,e])=>e.status==='queued'&&!this.active.has(key)&&!(e.layer==='concept'&&(this.externalSlots()||this.analyzer?.active.has('concept-only:'+e.sourceId))));
@@ -76,12 +80,14 @@ export class LayerPipeline {
    const payload={purpose:e.layer==='concept'?'concept-only':e.layer+'-only',historicalRecognition:historical,source:{id:source.id,title:source.title,hash:source.hash,offset:part.start,total:source.body.length,text:part.text},conceptsEnabled:e.layer==='concept',existingConcepts:e.layer==='concept'?this.concepts.context(source,part.text):[],knownConceptDiscussion:e.layer==='concept'?this.concepts.knownDiscussion(source):[],existingCandidates:candidates,mainTagCandidates:[],mainTagRegistry:[],relationshipTypes:this.store.state.types,validationFeedback:e.error||''};
    e.currentRange=[part.start,part.end];e.step='MODEL_RUNNING';this.emit('LAYER_MODEL_STARTED',e);this.save();
    if(e.reanalyze&&this.store.analysisTemplates?.input()[e.layer]?.hash!==e.templateHash)throw Error('确认模板已变化，请用新模板重新选择范围');
-   const result=await run(payload,{signal:controller.signal});if(controller.signal.aborted||this.analyzer?.state.tasksPaused)throw Error('任务已暂停');if(this.source(e.sourceId).hash!==e.sourceHash)throw Error('来源已变化，本段未提交');
+   payload.semanticNavigationCatalog=readNavigationIndex(this.store.meta).domains;
+   const returnDir=path.join(this.store.meta,'layer-returns');fs.mkdirSync(returnDir,{recursive:true});const returnFile=path.join(returnDir,hash(JSON.stringify({key,sourceHash:source.hash,start:part.start,end:part.end,templateHash:e.templateHash||null,connection:e.connection||null}))+'.json');let result;if(fs.existsSync(returnFile))result=JSON.parse(fs.readFileSync(returnFile));else{result=await run(payload,{signal:controller.signal});write(returnFile,result);}e.preservedReturn=returnFile;this.save();if(controller.signal.aborted||this.analyzer?.state.tasksPaused)throw Error('任务已暂停');if(this.source(e.sourceId).hash!==e.sourceHash)throw Error('来源已变化，本段未提交');
    if(e.reanalyze){const renamed=new Map();for(const item of result[e.layer==='skill'?'skills':e.layer==='concept'?'concepts':'knowledge']||[]){const old=item.key;item.key+='|template:'+e.templateHash;renamed.set(old,item.key);item.existingId='';if(e.layer==='concept'){item.existingHash='';item.mergeDecision='new';}}for(const relation of result.relations||[]){relation.from=renamed.get(relation.from)||relation.from;relation.to=renamed.get(relation.to)||relation.to;}}
    e.step='VALIDATING';this.emit('LAYER_VALIDATING',e);this.save();
    for(const field of e.layer==='concept'?['knowledge','skills','relations','vaultRelations','mainTagUpdates']:e.layer==='knowledge'?['skills','concepts','unresolvedQuestions','vaultRelations','mainTagUpdates']:['knowledge','concepts','unresolvedQuestions','vaultRelations','mainTagUpdates'])if(result[field]?.length)throw Error('独立层任务返回了其他层内容，未保存');
    this.analyzer.prepareLocators(result,part,candidates,[]);this.analyzer.validate(result,part.text,candidates);
    if(e.layer==='concept')this.concepts.consume(source,part,result.concepts,result.unresolvedQuestions||[],{historical,template:result.analysisTemplates?.concept});else this.analyzer.apply(result,source,e,candidates,part);
+   consumeGeneratedNavigation(this.store,result,source,run.providerDescription?.model||"unknown");
    e.offset=part.end;e.parts=[...(e.parts||[]),{start:part.start,end:part.end,savedAt:new Date().toISOString()}];e.error=null;e.status=e.layer==='concept'&&!e.reanalyze?(this.concepts.gaps(source).length?'queued':'done'):(e.offset===source.body.length?'done':'queued');e.step='SAVED';this.emit('LAYER_SEGMENT_SAVED',e);this.save();
   }catch(error){e.error=error.message;e.status=controller.signal.aborted?'paused':'review';e.step=controller.signal.aborted?'PAUSED':'FAILED';this.emit(controller.signal.aborted?'LAYER_PAUSED':'LAYER_ERROR',e,controller.signal.aborted?null:error);this.save();}
   finally{this.active.delete(key);}

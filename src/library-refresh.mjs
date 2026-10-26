@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 // Watch only library folders; periodically reconcile missed/coalesced events.
-export function createLibraryRefresh(store,{watch=fs.watch,clock=Date.now,reconcileMs=60000}={}){
+export function createLibraryRefresh(store,{watch=fs.watch,clock=Date.now,reconcileMs=60000,onChange=()=>{}}={}){
   const pending=new Set(),watchers=[];
   let full=false,lastFull=clock(),closed=false;
   const mark=(folder,event,name)=>{
@@ -24,7 +24,7 @@ export function createLibraryRefresh(store,{watch=fs.watch,clock=Date.now,reconc
       const due=clock()-lastFull>=reconcileMs;
       if(!full&&!due&&!pending.size)return;
       const paths=[...pending];pending.clear();const all=full||due;full=false;
-      try{store.scan(all?{}:{paths});if(all)lastFull=clock();}
+      try{const before=new Map((store.nodes||[]).map(n=>[n.id,n.hash+':'+(n.classificationHash||'')]));store.scan(all?{}:{paths});const changed=(store.nodes||[]).filter(n=>before.get(n.id)!==n.hash+':'+(n.classificationHash||'')).map(n=>n.id),present=new Set((store.nodes||[]).map(n=>n.id));for(const id of before.keys())if(!present.has(id))changed.push(id);if(changed.length)onChange({nodeIds:changed,sourceRevision:store.state.revision});if(all)lastFull=clock();}
       catch(error){full=true;for(const p of paths)pending.add(p);throw error;}
     },
     close(){closed=true;for(const watcher of watchers)watcher.close();pending.clear();}

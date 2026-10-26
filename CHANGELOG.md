@@ -1,5 +1,16 @@
 # Changes
 
+## 0.8.0 — 2026-10-26
+
+- Integrate the enabled local update → configured runner → truthful state → preserved return → verified save → checkpoint continuation loop, without a chat heartbeat.
+- Add shared semantic-domain/project/content navigation, explicit bounded label maintenance, preserved-return recovery and honest pending/unknown boundaries.
+- Preserve manually confirmed templates on upgrade; add complete reusable-prompt and stable-setting/variant rules, a human-readable concept page and explicit read-only task-context.
+- Repair directory whitespace, empty WebGL trail buffers, repeated relation lookup and shared-tour membership scans while retaining approved geometry.
+- Strengthen safe pause/resume/reset/rerun, two-choice deletion, source/version tombstones, current/history error state and result/transport recovery.
+- Document finite evaluation and large-network performance limits; no private-library migration, new platform connection or daily collection schedule.
+
+[Detailed update](UPDATE-NOTES-0.8.0.md) · [Four-layer workflow](docs/FOUR-LAYERS.md).
+
 ## 0.7.2 — 2026-10-22
 
 - Use equal angular speeds within each host/ring and asynchronous periods between different rings in all four networks.

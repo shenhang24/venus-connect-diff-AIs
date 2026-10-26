@@ -24,6 +24,16 @@ test('ExampleProject项目基准优先，依据链可继承，无关提及不升
   for(const id of ['v','k','s']){assert.equal(h.get(id).level,12);assert.equal(h.get(id).basis,'user-project');}
   assert.equal(h.get('u').level,0);
 });
+
+test('the same cited activity reaches every one of thirteen tiers in all four networks',()=>{
+  const cases=[[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[3,2],[5,2],[5,3],[6,3],[8,3],[12,4],[16,5]];
+  for(const [expected,[turns,days]]of cases.entries()){
+    const quotes=Array.from({length:turns},(_,i)=>'活动证据-'+i+'。');
+    const v=vault('v',quotes.map((quote,i)=>msg('m'+i,String(1+i%days).padStart(2,'0'),quote)).join(''));
+    const sources=quotes.map(quote=>({id:'v',quote})),k={id:'k',kind:'knowledge',title:'Knowledge',body:'Synthesis.',sources},s={id:'s',kind:'skill',title:'Skill',body:'Method.',sources:[{id:'k',quote:'Synthesis.'}]},c={id:'c',kind:'concept',title:'Concept',body:'Insight.',sources};
+    const heat=deriveHeat([v,k,s,c],{rules:[]});for(const id of ['v','k','s','c']){assert.equal(heat.get(id).level,expected,id+' tier '+expected);assert.equal(heat.get(id).color,heat.get('v').color);}
+  }
+});
 test('派生知识只统计被引消息，不继承长对话的所有活动',()=>{
   const v=vault('v',Array.from({length:20},(_,i)=>msg('m'+i,String(1+i%5).padStart(2,'0'),'讨论'+i)).join(''));
   const k={id:'k',kind:'knowledge',title:'独立知识',body:'知识',sources:[{id:'v',quote:'讨论0'}]};
@@ -41,14 +51,4 @@ test('citation activity cache reuses unchanged evidence and invalidates on sourc
   const edited=vault('v',msg('second','18','替换后的正文'));
   assert.equal(deriveHeat([edited,k],{cache}).get('k').userTurns,0);
   assert.equal(deriveHeat([v,k],{cache}).get('k').userTurns,1);
-});
-
-test('the same cited activity reaches every one of thirteen tiers in all four networks',()=>{
-  const cases=[[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[3,2],[5,2],[5,3],[6,3],[8,3],[12,4],[16,5]];
-  for(const [expected,[turns,days]]of cases.entries()){
-    const quotes=Array.from({length:turns},(_,i)=>'活动证据-'+i+'。');
-    const v=vault('v',quotes.map((quote,i)=>msg('m'+i,String(1+i%days).padStart(2,'0'),quote)).join(''));
-    const sources=quotes.map(quote=>({id:'v',quote})),k={id:'k',kind:'knowledge',title:'Knowledge',body:'Synthesis.',sources},s={id:'s',kind:'skill',title:'Skill',body:'Method.',sources:[{id:'k',quote:'Synthesis.'}]},c={id:'c',kind:'concept',title:'Concept',body:'Insight.',sources};
-    const heat=deriveHeat([v,k,s,c],{rules:[]});for(const id of ['v','k','s','c']){assert.equal(heat.get(id).level,expected,id+' tier '+expected);assert.equal(heat.get(id).color,heat.get('v').color);}
-  }
 });

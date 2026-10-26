@@ -2,7 +2,7 @@
 export class MotionTrails {
  constructor({samples=8,uploadMs=1000/30,stopFadeMs=1500,sampleSpacing=1.05}={}){this.samples=samples;this.uploadMs=uploadMs;this.stopFadeMs=stopFadeMs;this.sampleSpacing=sampleSpacing;this.ids=[];this.lastUpload=-Infinity;}
  sync(nodes,radii,colorFor){
-  const same=nodes.length===this.ids.length&&nodes.every((n,i)=>n.id===this.ids[i]);
+  const same=this.positions instanceof Float32Array&&nodes.length===this.ids.length&&nodes.every((n,i)=>n.id===this.ids[i]);
   if(!same){const old=this.ids.length?{index:new Map(this.ids.map((id,i)=>[id,i])),history:this.history,times:this.times,counts:this.counts,heads:this.heads,lastPosition:this.lastPosition,lastMovement:this.lastMovement}:null;this.ids=nodes.map(n=>n.id);const n=nodes.length,s=this.samples;this.history=new Float64Array(n*s*3);this.times=new Float64Array(n*s);this.counts=new Uint8Array(n);this.heads=new Uint8Array(n);this.lastPosition=new Float64Array(n*3);this.lastMovement=new Float64Array(n);this.positions=new Float32Array(n*s*6);this.colors=new Float32Array(n*s*8);this.widths=new Float32Array(n*s);this.distances=new Float32Array(n*s*2);
    if(old)for(let i=0;i<n;i++){const j=old.index.get(this.ids[i]);if(j===undefined)continue;this.history.set(old.history.subarray(j*s*3,(j+1)*s*3),i*s*3);this.times.set(old.times.subarray(j*s,(j+1)*s),i*s);this.counts[i]=old.counts[j];this.heads[i]=old.heads[j];this.lastPosition.set(old.lastPosition.subarray(j*3,j*3+3),i*3);this.lastMovement[i]=old.lastMovement[j];}
   }

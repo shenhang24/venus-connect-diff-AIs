@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "venus-private",
-  "version": "0.6.0",
-  "description": "\u672c\u673a Venus \u8d44\u6599\u9010\u6b65\u5206\u6790\u3001\u4f9d\u636e\u8ffd\u6eaf\u4e0e\u80fd\u529b\u6574\u5408",
+  "version": "0.8.0",
+  "description": "本机 Venus 资料逐步分析、依据追溯与能力整合",
   "extensions": {
     "com.openai": {
       "requires_local_executor": true

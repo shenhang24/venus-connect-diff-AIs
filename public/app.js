@@ -1,5 +1,6 @@
+import {executionReviewCardHTML,classificationPlaceholder} from '/execution-review-card.js';
 import {createNavigationHistory,installDismissNavigation} from '/workspace-controls.js';
-import {organizeProjectKnowledge,knowledgeProjectBuckets,knowledgeTopicNames,projectKey,UNASSIGNED_PROJECT} from '/taxonomy.js';
+import {projectLayerRelations,buildSemanticNavigation,navContents,NAV_UNASSIGNED_PROJECT,organizeProjectKnowledge,knowledgeProjectBuckets,knowledgeTopicNames,projectKey,UNASSIGNED_PROJECT} from '/taxonomy.js';
 import {initWorkspaceControls} from '/workspace-controls.js';
 import { tr, initializeLanguage, uiLocale, uiError, heatText } from '/i18n.js';
 async function renderLayerControls(host,sourceId,helpers){try{const module=await import('/layer-controls.js');return module.renderLayerControls(host,sourceId,{...helpers,api:(route,data)=>helpers.api(route,route==='layers/start'&&pendingLayerProvider?{...data,connection:pendingLayerProvider}:data)});}catch{if(host?.isConnected)host.textContent=tr('四层处理入口将在安全加载新版后台后可用。');}}
@@ -10,12 +11,14 @@ await initializeLanguage();
 import { marked } from "/vendor/marked.js";
 import { Network, shortNodeLabel, createRelationVisibility, relationDisplayTypes, nodeTagHierarchy, matchesMainTag, networkActivityHeat, NETWORK_HEAT_LEVELS } from "/graph.js";
 const relationVisibility=createRelationVisibility(globalThis.localStorage);
-import { knowledgeForSource, knowledgeInScope, knowledgeListPage, chooseKnowledgeSource, knowledgeStatus, taskPresentation, activityState, fileStageProgress, InlineDrafts, saveInlineDraft, linkedNeighbours, installButtonFeedback, runButtonAction, currentButtonAction, actionResult, SavedProgressObserver, processingState, conceptRecheckMessage, collectProcessingEvidence, tokenUsagePresentation } from "/knowledge-view.js";
+import { knowledgeForSource, knowledgeInScope, knowledgeListPage, chooseKnowledgeSource, knowledgeStatus, taskPresentation, activityState, fileStageProgress, InlineDrafts, saveInlineDraft, linkedNeighbours, installButtonFeedback, runButtonAction, currentButtonAction, actionResult, SavedProgressObserver, processingState, acceptExecutionSnapshot, conceptRecheckMessage, collectProcessingEvidence, tokenUsagePresentation } from "/knowledge-view.js";
 installButtonFeedback(document);
 const savedProgressObserver=new SavedProgressObserver();
 let processingObservation=null,stateReadAt=null,refreshInFlight=null,stateReadError=null;
-let processingEvidence={},processingEvidenceStamp='';
+let processingEvidence={},processingEvidenceStamp='',processingEvidenceNextRead=0;
 let tokenUsage=null,tokenUsageNextRead=0;
+let libraryRoute={domainId:null,projectId:null,nodeId:null,query:'',topic:null,page:0};
+const conceptEditing=new Set();
 let knowledgeSource=null,knowledgeQuery='',knowledgePage=0,knowledgeTopic='';
 const inlineDrafts=new InlineDrafts();
 let navigationContext=null;
@@ -38,7 +41,7 @@ let state = {
     positions: {},
     settings: {},
   },
-  view = "vault",
+  view = (["vault","knowledge","skill","concept","vault-network","knowledge-network","skill-network","concept-network"].includes(new URLSearchParams(location.search).get("view"))?new URLSearchParams(location.search).get("view"):"vault"),
   vaultId = null,
   chosen = null,
   graph = null,
@@ -62,7 +65,7 @@ const mainTagSelections={};
 function mainTagsHTML(node){const tags=nodeTagHierarchy(node);return tags.length?'<div class="main-tags"><strong>'+tr('主分类')+'</strong> '+tags.map(tag=>'<button class="category-chip" data-main-tag="'+esc(tag.key||tag.primary)+'" data-main-kind="'+node.kind+'">'+esc(tag.kind==='project'?tag.primary:tr(tag.primary))+'</button>'+tag.secondary.map(sub=>'<button class="category-chip subcategory" data-main-tag="'+esc((tag.key||tag.primary)+'::'+sub)+'" data-main-kind="'+node.kind+'">'+esc(sub)+'</button>').join('')).join('')+'</div>':'';}
 function taxonomyFiltersHTML(kind){const tags=new Map();for(const n of state.nodes.filter(n=>n.kind===kind))for(const t of nodeTagHierarchy(n)){const key=t.key||t.primary;if(!tags.has(key))tags.set(key,{label:t.primary,kind:t.kind,children:new Set()});for(const sub of t.secondary)tags.get(key).children.add(sub);}const selected=mainTagSelections[kind]||'',primary=selected.split('::')[0];return '<h4>'+tr('主分类')+'</h4><div class="main-tags"><button class="category-chip" data-main-tag="">'+tr('全部显示')+'</button>'+[...tags].map(([key,item])=>'<button class="category-chip '+(primary===key?'selected':'')+'" data-main-tag="'+esc(key)+'">'+esc(item.kind==='project'?item.label:tr(item.label))+'</button>').join('')+'</div>'+(primary&&tags.get(primary)?.children.size?'<h4>'+tr('子分类')+'</h4><div class="main-tags">'+[...tags.get(primary).children].sort().map(sub=>'<button class="category-chip '+(selected===primary+'::'+sub?'selected':'')+'" data-main-tag="'+esc(primary+'::'+sub)+'">'+esc(sub)+'</button>').join('')+'</div>':'');}
 function knowledgeProjectFilter(){return (mainTagSelections.knowledge||'').split('::')[0];}
-function knowledgeOrganizationControls(){const all=knowledgeInScope(state.nodes),buckets=knowledgeProjectBuckets(all),selected=knowledgeProjectFilter(),topics=[...new Set(all.flatMap(knowledgeTopicNames))].sort();return '<label class="field">'+tr('所属项目')+'<select id="knowledge-project" aria-label="'+tr('所属项目')+'"><option value="">'+tr('全部项目')+'</option>'+buckets.map(b=>'<option value="'+esc(b.key)+'"'+(selected===b.key?' selected':'')+'>'+esc(b.kind==='unassigned'?tr(b.name):b.name)+' · '+b.count+'</option>').join('')+'</select></label><label class="field">'+tr('跨项目主题')+'<select id="knowledge-topic" aria-label="'+tr('跨项目主题')+'"><option value="">'+tr('全部主题')+'</option>'+topics.map(t=>'<option value="'+esc(t)+'"'+(knowledgeTopic===t?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select></label>';}
+function knowledgeOrganizationControls(){if(state.semanticNavigation?.version===1){const tree=buildSemanticNavigation(state.nodes,state.semanticNavigation,'knowledge'),selected=knowledgeProjectFilter(),topics=[...new Set(tree.nodes.flatMap(knowledgeTopicNames))].sort();return '<label class="field">'+tr('所属项目')+'<select id="knowledge-project" aria-label="'+tr('所属项目')+'"><option value="">'+tr('全部项目')+'</option>'+tree.projects.map(p=>'<option value="'+esc(projectKey(p.id))+'"'+(selected===projectKey(p.id)?' selected':'')+'>'+esc(p.name)+' · '+p.nodes.length+'</option>').join('')+'</select></label><label class="field">'+tr('跨项目主题')+'<select id="knowledge-topic" aria-label="'+tr('跨项目主题')+'"><option value="">'+tr('全部主题')+'</option>'+topics.map(t=>'<option value="'+esc(t)+'"'+(knowledgeTopic===t?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select></label>';}const all=knowledgeInScope(state.nodes),buckets=knowledgeProjectBuckets(all),selected=knowledgeProjectFilter(),topics=[...new Set(all.flatMap(knowledgeTopicNames))].sort();return '<label class="field">'+tr('所属项目')+'<select id="knowledge-project" aria-label="'+tr('所属项目')+'"><option value="">'+tr('全部项目')+'</option>'+buckets.map(b=>'<option value="'+esc(b.key)+'"'+(selected===b.key?' selected':'')+'>'+esc(b.kind==='unassigned'?tr(b.name):b.name)+' · '+b.count+'</option>').join('')+'</select></label><label class="field">'+tr('跨项目主题')+'<select id="knowledge-topic" aria-label="'+tr('跨项目主题')+'"><option value="">'+tr('全部主题')+'</option>'+topics.map(t=>'<option value="'+esc(t)+'"'+(knowledgeTopic===t?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select></label>';}
 function bindKnowledgeOrganization(){const project=$('#knowledge-project'),topic=$('#knowledge-topic');if(project)project.onchange=()=>{mainTagSelections.knowledge=project.value||null;knowledgeSource=null;knowledgePage=0;chosen=null;if(view.endsWith('-network')){updateGraph();if(project.value)focusFilteredContent({mainTag:project.value});else graph.fit();renderInspector();}else render({force:true});};if(topic)topic.onchange=()=>{knowledgeTopic=topic.value;knowledgePage=0;chosen=null;if(view.endsWith('-network'))updateGraph();else render({force:true});};}
 function groupProjectEntries(){const list=$('#file-list');if(!list)return;for(const group of state.projectGroups||[]){const buttons=group.members.map(m=>list.querySelector('[data-file="'+m.id+'"]')).filter(Boolean);if(!buttons.length)continue;const details=document.createElement('details');details.className='project-entry';details.open=group.members.some(m=>m.id===chosen||m.id===vaultId);details.innerHTML='<summary>'+esc(group.name)+' <small>'+group.members.length+' '+tr('份原始资料')+'</small></summary><div class="project-branches"></div>';list.insertBefore(details,buttons[0]);for(const button of buttons)details.lastElementChild.append(button);}const input=$('#list-search'),old=input?.oninput;if(input)input.oninput=event=>{old?.(event);for(const group of list.querySelectorAll('.project-entry'))group.hidden=[...group.querySelectorAll('[data-file]')].every(b=>b.hidden);};}
 function bindMainTags(){
@@ -86,12 +89,26 @@ function activityHTML() {
 function processingDetailsHTML(){
  const task=processingState(state),observation=processingObservation,format=value=>new Date(value).toLocaleString(uiLocale(),{timeZone:'Australia/Sydney'});
  if(stateReadError)return '<div class="processing-details" data-processing-mode="unknown"><strong>'+tr('状态读取失败；保留上次显示，不能确认新的进度')+'</strong><small>'+tr('状态读取：')+(stateReadAt?format(stateReadAt):tr('尚未取得'))+'</small></div>';
- const content='<div class="processing-details" data-processing-mode="'+task.mode+'"><strong>'+esc(task.label)+'</strong>'+(task.title?'<span>'+tr('当前文件：')+esc(task.title)+'</span>':'')+(task.step?'<span>'+tr('当前步骤：')+esc(stepLabel(task.step))+'</span>':'')+(task.total!==null?'<span>'+tr('已核对落盘：')+task.offset.toLocaleString(uiLocale())+' / '+task.total.toLocaleString(uiLocale())+tr(' 字符')+'</span>':'')+(task.range?'<span>'+tr('当前分段：')+task.range[0]+'–'+task.range[1]+'</span>':task.title?'<span>'+tr('后续起点：')+(task.nextOffset??task.offset)+' · '+tr('本段范围尚未提供')+'</span>':'')+(task.count?'<span>'+tr('已核实完成：')+task.count[0]+' / '+task.count[1]+'</span>':'')+(task.lastAction?'<small>'+tr('最后动作：')+esc(stepLabel(task.lastAction))+'</small>':'')+'<small>'+tr('最后更新：')+(task.lastUpdatedAt?format(task.lastUpdatedAt):tr('未提供'))+'</small><small>'+tr('最后保存：')+(task.lastSavedAt?format(task.lastSavedAt):tr('未提供'))+'</small><small>'+tr('状态读取：')+(stateReadAt?format(stateReadAt):tr('尚未取得'))+'</small><small>'+esc(observation?.lastAdvance?tr('最近落盘推进（本页面观察）：')+format(observation.lastAdvance):tr('本页面尚未观察到新增落盘进度'))+'</small>'+(task.error?'<span role="alert">'+esc(task.error)+'</span>':'')+(task.lastTaskEvent?.action==='RECOVERY_START_BLOCKED'?'<span role="alert">'+tr('最近恢复请求未启动：')+esc(task.lastTaskEvent.error?.original||task.lastTaskEvent.code)+'</span>':'')+(task.exceptions?.length?'<details><summary>'+tr('待回补异常')+' · '+task.exceptions.length+'</summary>'+task.exceptions.map(e=>'<p>'+esc(e.file)+' · '+e.start+'–'+e.end+' · '+esc(tr(e.status==='user-skipped'?'用户跳过，等待决定':e.status==='needs-user'?'需要用户决定':'等待集中回补'))+'</p>').join('')+'</details>':'')+(task.unresolvedSkips?'<small>'+tr('跳过但未完成：')+task.unresolvedSkips+'</small>':'')+'</div>';
+ const content='<div class="processing-details" data-processing-mode="'+task.mode+'"><strong>'+esc(task.label)+'</strong>'+(task.title?'<span>'+tr(task.nonCharacterRange?'当前作业：':'当前文件：')+esc(task.title)+'</span>':'')+(task.step?'<span>'+tr('当前步骤：')+esc(stepLabel(task.step))+'</span>':'')+(task.total!==null?'<span>'+tr('已核对落盘：')+task.offset.toLocaleString(uiLocale())+' / '+task.total.toLocaleString(uiLocale())+tr(' 字符')+'</span>':'')+(task.range?'<span>'+tr('当前分段：')+task.range[0]+'–'+task.range[1]+'</span>':task.title&&!task.nonCharacterRange?'<span>'+tr('后续起点：')+(task.nextOffset??task.offset)+' · '+tr('本段范围尚未提供')+'</span>':'')+(task.count?'<span>'+tr('已核实完成：')+task.count[0]+' / '+task.count[1]+'</span>':'')+(task.lastAction?'<small>'+tr('最后动作：')+esc(stepLabel(task.lastAction))+'</small>':'')+'<small>'+tr('最后更新：')+(task.lastUpdatedAt?format(task.lastUpdatedAt):tr('未提供'))+'</small><small>'+tr(task.nonCharacterRange?'资料库最近保存：':'最后保存：')+(task.lastSavedAt?format(task.lastSavedAt):tr('未提供'))+'</small><small>'+tr('状态读取：')+(stateReadAt?format(stateReadAt):tr('尚未取得'))+'</small><small>'+esc(observation?.lastAdvance?tr('最近落盘推进（本页面观察）：')+format(observation.lastAdvance):tr('本页面尚未观察到新增落盘进度'))+'</small>'+(task.error?'<span role="alert">'+esc(task.error)+'</span>':'')+(task.lastTaskEvent?.action==='RECOVERY_START_BLOCKED'?'<span role="alert">'+tr('最近恢复请求未启动：')+esc(task.lastTaskEvent.error?.original||task.lastTaskEvent.code)+'</span>':'')+(task.exceptions?.length?'<details><summary>'+tr('待回补异常')+' · '+task.exceptions.length+'</summary>'+task.exceptions.map(e=>'<p>'+esc(e.file)+' · '+e.start+'–'+e.end+' · '+esc(tr(e.status==='user-skipped'?'用户跳过，等待决定':e.status==='needs-user'?'需要用户决定':'等待集中回补'))+'</p>').join('')+'</details>':'')+(task.unresolvedSkips?'<small>'+tr('跳过但未完成：')+task.unresolvedSkips+'</small>':'')+'</div>';
  return content+(task.lastSavedAction?'<small>'+tr('最近保存动作：')+esc(stepLabel(task.lastSavedAction))+'</small>':'')+(task.reason?'<p>'+esc(task.reason)+'</p>':'')+(task.activities.length>1?'<div>'+task.activities.map(flow=>'<p>'+esc(flow.pipeline||flow.label)+' · '+esc(flow.title||'')+' · '+esc(stepLabel(flow.step||flow.lastAction||flow.label))+'</p>').join('')+'</div>':'')+(task.notices.length?'<details><summary>'+tr('其他流程状态')+'</summary>'+task.notices.map(flow=>'<p>'+esc(flow.pipeline||'')+' · '+esc(flow.label)+(flow.title?' · '+esc(flow.title):'')+(flow.range?' · '+flow.range[0]+'–'+flow.range[1]:'')+(flow.reason?' · '+esc(flow.reason):'')+(flow.error?' · '+esc(flow.error):'')+'</p>'+recoveryControlsHTML(flow)).join('')+'</details>':'')+recoveryControlsHTML(task);
 }
-function stepLabel(step){return tr(({CONCEPT_BACKFILL:'历史概念覆盖回补',CLASSIFYING:'主分类归纳中',BACKFILL:'自动恢复正在接续',BLOCKED:'审批或认证阻塞',STOPPED:'执行器已停止，保留断点',CONCEPT_RECHECK_FAST_PASS:'概念再次检查快速通过',CONCEPT_RECHECK_LOCAL_PASS:'概念本地核验通过',CONCEPT_RECHECK_REQUESTED:'概念再次检查已登记',SKIP_EXISTING_CHECKPOINT:'保留原有完整核对记录',SKIP_RANGE_VERIFIED:'复用已核对完整分段','/api/concept-review/recheck':'再次检查概念',LAYER_VALIDATING:'校验引用与原文',LAYER_ERROR:'发生错误',LAYER_SKIPPED:'用户跳过，保留缺口',SERVICE_LOADED:'本地服务已加载',UI_RECOVERY_LOGS_UPDATED:'界面与恢复日志更新','/api/import':'原始资料保存','/api/edit':'资料修改保存','/api/upsert':'提炼节点保存','/api/relation':'关系保存','/api/main-tags':'分类保存','/api/analysis':'队列配置保存','/api/layers/start':'独立层请求','/api/layers/control':'恢复请求','/api/concept-review/control':'恢复请求',READ_COMPARE:'原文与概念对照',MODEL_RUNNING:'模型处理',LAYER_MODEL_STARTED:'模型处理',REUSE_SAVED_RESULT:'复用本地返回结果',VALIDATING:'校验引用与原文',VALIDATION_STARTED:'校验引用与原文',CONCEPT_SAVED:'概念实际保存',SUPPLEMENT_SAVED:'补充实际保存',CONTENT_CHECK_SAVED:'本段内容核对已保存',SKIP_COMPLETE:'核对完整后跳过',RANGE_QUARANTINED:'失败段进入异常清单',CONNECTIONS_NOT_SAVED:'未建立无有效节点的关联',LAYER_SEGMENT_SAVED:'本段结果已保存',LAYER_QUEUED:'独立任务已排队',QUEUED:'排队中',SAVED:'结果已保存',ERROR:'发生错误',FAILED:'失败，等待处理',PAUSED:'已暂停',COMPLETE:'内容核对完成',STARTING:'等待执行器就绪',DOCUMENT_CHECKED:'整篇内容核对完成',RECOVERY_START_BLOCKED:'恢复启动被拦截',REVIEW_SEGMENT_SKIPPED:'用户跳过，保留缺口'})[step]||step);}
-function recoveryControlsHTML(task){const c=task.controls;if(!c||!['failed','paused','blocked'].includes(task.mode))return '';return '<div class="recovery-actions">'+(c.resume?'<button type="button" data-review-action="resume"'+(c.manualRequired?' disabled':'')+'>'+tr('继续核对')+'</button>':'')+(c.retry?'<button type="button" data-review-action="retry"'+(c.manualRequired?' disabled':'')+'>'+tr('重试失败段')+'</button>':'')+(c.skip?'<button type="button" data-review-action="skip">'+tr('跳过此失败段')+'</button>':'')+'<small>'+esc(tr(c.reason))+'</small></div>';}
-function bindRecoveryActions(){document.querySelectorAll('[data-review-action]').forEach(button=>button.onclick=async()=>{const action=button.dataset.reviewAction;if(action==='skip'){modal(tr('跳过此失败段'),'<p>'+tr('保留原文、断点和缺口；跳过不算内容完整。')+'</p><label class="field">'+tr('跳过原因')+'<input name="reason" required maxlength="200"></label>',async form=>{const result=await api('concept-review/control',{action,reason:form.get('reason')});toast(tr(result.skipped?'已记录跳过，仍未完成':'请求已返回，状态已确认'));});return;}const r=await api('concept-review/control',{action});toast(tr(r.manualRequired?r.message:'请求已接受，等待实际状态'));});}
+function stepLabel(step){return tr(({EXECUTION_HANDOFF_WAITING_ORIGINAL_EXIT:'等待旧执行器自然退出，新版尚未接管',EXECUTION_HANDOFF_WAITING_MODEL_EXIT:'等待旧模型退出',EXECUTION_HANDOFF_LOADING_OWNED_SERVICE:'正在加载应用内执行链',EXECUTION_HANDOFF_MANAGED_STARTING:'等实际保存读回确认接管',EXECUTION_HANDOFF_MANAGED_READY:'应用内执行链已验证接管',EXECUTION_HANDOFF_BLOCKED:'交接遇到具体阻塞',CONCEPT_BACKFILL:'历史概念覆盖回补',CLASSIFYING:'主分类归纳中',BACKFILL:'自动恢复正在接续',BLOCKED:'审批或认证阻塞',STOPPED:'执行器已停止，保留断点',CONCEPT_RECHECK_FAST_PASS:'概念再次检查快速通过',CONCEPT_RECHECK_LOCAL_PASS:'概念本地核验通过',CONCEPT_RECHECK_REQUESTED:'概念再次检查已登记',SKIP_EXISTING_CHECKPOINT:'保留原有完整核对记录',SKIP_RANGE_VERIFIED:'复用已核对完整分段','/api/concept-review/recheck':'再次检查概念',LAYER_VALIDATING:'校验引用与原文',LAYER_ERROR:'发生错误',LAYER_SKIPPED:'用户跳过，保留缺口',SERVICE_LOADED:'本地服务已加载',UI_RECOVERY_LOGS_UPDATED:'界面与恢复日志更新','/api/import':'原始资料保存','/api/edit':'资料修改保存','/api/upsert':'提炼节点保存','/api/relation':'关系保存','/api/main-tags':'分类保存','/api/analysis':'队列配置保存','/api/layers/start':'独立层请求','/api/layers/control':'恢复请求','/api/concept-review/control':'恢复请求',READ_COMPARE:'原文与概念对照',MODEL_RUNNING:'模型处理',LAYER_MODEL_STARTED:'模型处理',REUSE_SAVED_RESULT:'复用本地返回结果',VALIDATING:'校验引用与原文',VALIDATION_STARTED:'校验引用与原文',CONCEPT_SAVED:'概念实际保存',SUPPLEMENT_SAVED:'补充实际保存',CONTENT_CHECK_SAVED:'本段内容核对已保存',SKIP_COMPLETE:'核对完整后跳过',RANGE_QUARANTINED:'失败段进入异常清单',CONNECTIONS_NOT_SAVED:'未建立无有效节点的关联',LAYER_SEGMENT_SAVED:'本段结果已保存',LAYER_QUEUED:'独立任务已排队',QUEUED:'排队中',SAVED:'结果已保存',ERROR:'发生错误',FAILED:'失败，等待处理',PAUSED:'已暂停',COMPLETE:'内容核对完成',STARTING:'等待执行器就绪',DOCUMENT_CHECKED:'整篇内容核对完成',RECOVERY_START_BLOCKED:'恢复启动被拦截',REVIEW_SEGMENT_SKIPPED:'用户跳过，保留缺口'})[step]||step);}
+const executionActionLabels={reset:'重置任务',rerun:'重新开始',resume:'继续当前核对',pause:'保存断点后暂停',verify:'核验断点并查看方案',cancel:'取消当前任务并保留断点','inspect-failure':'查看失败位置与保留结果','verify-owner':'核验执行所有者','wait-owner':'等待原进程正常退出','restore-control-backup':'恢复已验证控制副本','defer-source':'隔离此资料并继续其余任务','retry-once':'冷却后重试一次','open-connections':'打开已有连接设置','verify-connection':'检测已有登录连接','resume-source':'恢复此隔离资料'};
+function recoveryControlsHTML(task){if(task.executionControls){const c=task.executionControls,availableActions=c.actions?.length?c.actions:[...(c.resume?['resume']:[]),...(c.verify?['verify']:[]),...(c.pause?['pause']:[])],actions=task.reviewCard?.sources?.some(source=>source.correction?.remaining===0)?availableActions.filter(action=>['defer-source','cancel'].includes(action)):availableActions;return '<div class="recovery-actions">'+(task.reviewCard?'<section class="issue-compact"><strong>'+esc(task.reviewCard.sources?.[0]?.title||'当前资料问题')+'</strong><p class="issue-brief">'+esc(task.reviewCard.why)+'</p><p class="issue-next">'+esc(task.reviewCard.automatic.status)+'</p><details class="issue-evidence"><summary>展开原文与逐字比对</summary><div class="issue-evidence-scroll">'+executionReviewCardHTML(task.reviewCard)+'</div></details></section>':'')+(task.reason?'<p>'+esc(tr(task.reason))+'</p>':'')+(task.plan?'<p>'+esc(tr(task.plan))+'</p>':'')+(task.failureLocation?'<p>'+esc(task.failureLocation.path||task.failureLocation.id||'')+' '+(task.failureLocation.start??'')+'–'+(task.failureLocation.end??'')+'</p>':'')+(task.verification?'<p>'+esc(tr(task.verification.verified?'断点核验通过；已有结果保留':'断点需要按方案处理'))+'</p>':'')+actions.map(action=>'<button type="button" data-execution-action="'+esc(action)+'"'+(executionActionsPending.has(action)?' disabled':'')+'>'+tr(executionActionLabels[action]||action)+(executionActionsPending.has(action)?' · 正在处理':'')+'</button>').join('')+'</div>';}const c=task.controls;if(!c||!['failed','paused','blocked'].includes(task.mode))return '';return '<div class="recovery-actions">'+(c.resume?'<button type="button" data-review-action="resume"'+(c.manualRequired?' disabled':'')+'>'+tr('继续核对')+'</button>':'')+(c.retry?'<button type="button" data-review-action="retry"'+(c.manualRequired?' disabled':'')+'>'+tr('重试失败段')+'</button>':'')+(c.skip?'<button type="button" data-review-action="skip">'+tr('跳过此失败段')+'</button>':'')+'<small>'+esc(tr(c.reason))+'</small></div>';}
+async function recoveryNode(id){const response=await fetch('/api/node?id='+encodeURIComponent(id));const node=await response.json();if(!response.ok)throw Error(node.error||'资料读取失败');return node;}
+function projectDecisionHTML(node){const membership=node.classification?.projectMembershipAnalysis;if(!membership||membership.decision!=='unassigned'&&membership.method!=='manual')return '';const manual=membership.method==='manual'&&!(node.classification.projectMemberships||[]).length;if(membership.method==='manual'&&!manual)return '';return '<section class="project-review-path"><h4>项目待归属</h4><p>'+esc(manual?'你已明确保留待归属；后续自动归属会保护这项选择。':membership.reason||'现有项目定义与正文尚无充分对应依据。')+'</p><p>这表示项目证据不足，不表示归纳失败。系统不会用标题或孤立词替你指定项目。</p><p>可继续保留待归属；若你明确决定暂不归属，可在此保存人工选择。</p>'+(manual?'':'<button type="button" data-retain-unassigned="'+esc(node.id)+'">明确保留这份资料待归属</button>')+'</section>';}
+function sourceRecoveryContent(id){return state.execution?.reviewCard?.sources?.some(source=>source.id===id)?recoveryControlsHTML(processingState(state)):'';}
+function sourceRecoveryHTML(id){return '<div data-source-recovery="'+esc(id)+'">'+sourceRecoveryContent(id)+'</div>';}
+function updateExecutionSourceViews(){document.querySelectorAll('[data-classification-placeholder]').forEach(el=>el.textContent=classificationPlaceholder(state.execution));document.querySelectorAll('[data-source-recovery]').forEach(el=>el.innerHTML=sourceRecoveryContent(el.dataset.sourceRecovery));bindRecoveryActions();}
+function bindRecoveryActions(){document.querySelectorAll('[data-retain-unassigned]').forEach(button=>button.onclick=async()=>{button.disabled=true;try{const node=await recoveryNode(button.dataset.retainUnassigned);await api('workspace/projects',{nodes:[{id:node.id,hash:node.hash,classificationHash:node.classificationHash}],projects:[]});const saved=await recoveryNode(node.id);if(saved.hash!==node.hash||saved.classification?.projectMembershipAnalysis?.method!=='manual'||saved.classification.projectMemberships?.length)throw Error('人工待归属读回尚未一致，未宣称成功');await refresh();toast('已保存人工待归属，原文未改，后续自动归属会保护此选择。');}catch(error){toast(uiError(error.message));}finally{button.disabled=false;}});document.querySelectorAll('[data-issue-source]').forEach(button=>button.onclick=()=>{const node=state.nodes.find(n=>n.id===button.dataset.issueSource);if(node){$('#modal-close')?.click();navigate(node.kind,node.id);}});document.querySelectorAll('[data-execution-action]').forEach(button=>button.onclick=async()=>{button.disabled=true;const action=button.dataset.executionAction;if(executionActionsPending.has(action))return;const selectedJobId=state.execution?.jobId,selectedSourceId=state.execution?.failureLocation?.id||state.execution?.failureLocation?.ids?.[0];executionActionsPending.set(action,{jobId:selectedJobId,operationId:crypto.randomUUID()});try{
+ if(action==='open-connections'){await aiConnectionDialog('gpt');return;}
+ if(action==='verify-connection'){const result=await api('ai-connections/detect',{family:'gpt',activeOnly:true});modal(tr('连接检测结果'),'<p>'+esc(tr(result.status))+'</p>',null);return;}
+ if(action==='reset'||action==='rerun'){const rerunSourceId=chosen||vaultId||state.execution?.current?.id||state.execution?.lastSaved?.id;const operationId=executionActionsPending.get(action).operationId;modal(tr(action==='reset'?'重置任务':'重新开始'),'<p>'+tr('保留原文、已有成果、人工修改和已用预算。')+'</p>'+(action==='rerun'?'<label>处理范围<select name="scope"><option value="selected">当前资料</option><option value="all">全部资料</option></select></label>':''),async form=>{const sourceId=rerunSourceId;await api('execution/control',{action,jobId:selectedJobId,operationId,scope:form.get('scope')||'selected',sourceIds:sourceId?[sourceId]:[]});await refresh();},tr(action==='reset'?'重置任务':'重新开始'));return;}
+ if(action==='defer-source'){modal(tr('隔离此资料并继续其余任务'),'<p>'+tr('保留原文和返回；此资料仍未完成，不计入完成总数。')+'</p><label class="field">'+tr('具体隔离原因')+'<input name="reason" required minlength="8" maxlength="400"></label>',async form=>{await api('execution/control',{action,jobId:selectedJobId,sourceId:selectedSourceId,reason:form.get('reason'),operationId:executionActionsPending.get(action)?.operationId||crypto.randomUUID()});await refresh();});return;}
+ const result=await api('execution/control',{action,jobId:selectedJobId,operationId:executionActionsPending.get(action)?.operationId||crypto.randomUUID()});
+ if(result.failure){modal(tr('查看失败位置与保留结果'),executionReviewCardHTML(result.failure.card),null);}
+ else toast(result.verification?tr(result.verification.verified?'断点核验通过；已有结果保留':'断点需要按方案处理'):result.reason?tr(result.reason):tr(result.accepted?'请求已登记；以真实执行状态为准':'请求未执行；请查看具体原因'));
+ await refresh();}catch(error){toast(uiError(error.message));}finally{executionActionsPending.delete(action);button.disabled=false;}});document.querySelectorAll('[data-review-action]').forEach(button=>button.onclick=async()=>{const action=button.dataset.reviewAction;if(action==='skip'){modal(tr('跳过此失败段'),'<p>'+tr('保留原文、断点和缺口；跳过不算内容完整。')+'</p><label class="field">'+tr('跳过原因')+'<input name="reason" required maxlength="200"></label>',async form=>{const result=await api('concept-review/control',{action,reason:form.get('reason')});toast(tr(result.skipped?'已记录跳过，仍未完成':'请求已返回，状态已确认'));});return;}const r=await api('concept-review/control',{action});toast(tr(r.manualRequired?r.message:'请求已接受，等待实际状态'));});}
 let journalDay='',journalRows=[],journalNext=null;
 function conceptRecheckDialog(){
  const sources=state.nodes.filter(n=>n.kind==='vault'&&!n.mergedInto);
@@ -159,8 +176,12 @@ async function api(route, data) {
 }
 const bodyCache = new Map(), readingPages = new Map();
 let renderGeneration = 0;
-let taskControlPending=false;
+let taskControlPending=false;const executionActionsPending=new Map();let executionFailureKey='',executionFailureCard=null;
 function taskControlMessage(control){
+  if(control?.execution?.enabled&&control.execution.phase==='cancelled')return '任务已取消，已保存结果和断点保留';
+  if(control?.execution?.enabled&&['blocked','storage-blocked','owner-unverified','scheduler-conflict','model-still-running'].includes(control.execution.phase))return '当前任务遇到具体阻塞，请查看下方原文、原因与处理按钮';
+  if(control?.execution?.enabled&&control.execution.phase==='waiting-recovery')return '正在按已保存预算等待恢复';
+  if(control?.execution?.enabled&&control.execution.phase==='complete')return tr('当前队列已完成');
   return tr(control?.externalControlRequired?'独立执行器仍在退出，尚未完全暂停':({enabled:'任务已启用，按保存断点继续',pausing:'正在暂停，等待当前请求退出',paused:'任务已完全暂停，已保存断点保留',stopped:'任务未启用，已保存断点保留',unavailable:'任务控制将在后台下次正常启动后可用'})[control?.phase]||'任务控制将在后台下次正常启动后可用');
 }
 function paintTaskControls(){
@@ -200,12 +221,13 @@ async function refreshState() {
   const next = organizeProjectKnowledge(await r.json());
   next.nodes=next.nodes.map(n=>({...n,heat:networkActivityHeat(n.heat)}));
   const evidenceStamp=[next.revision,next.conceptContentReview?.lastUpdatedAt].join(':');
-  if(evidenceStamp!==processingEvidenceStamp){try{const jr=await fetch('/api/journal?limit=100');if(jr.ok){processingEvidence=collectProcessingEvidence((await jr.json()).items,processingEvidence);processingEvidenceStamp=evidenceStamp;}}catch{}}
+  if(evidenceStamp!==processingEvidenceStamp||Date.now()>=processingEvidenceNextRead){processingEvidenceNextRead=Date.now()+5000;try{const jr=await fetch('/api/journal?limit=100');if(jr.ok){processingEvidence=collectProcessingEvidence((await jr.json()).items,processingEvidence);processingEvidenceStamp=evidenceStamp;}}catch{}}
   next.processingEvidence=processingEvidence;
+  try{const executionResponse=await fetch("/api/execution/status");if(executionResponse.ok){next.execution=acceptExecutionSnapshot(state.execution,await executionResponse.json());const key=next.execution?.error?JSON.stringify([next.execution.jobId,next.execution.runId,next.execution.error]):'';if(key&&key!==executionFailureKey){const response=await fetch('/api/execution/failure');if(response.ok){executionFailureCard=(await response.json()).card;executionFailureKey=key;}}if(!key){executionFailureKey='';executionFailureCard=null;}if(executionFailureCard)next.execution={...next.execution,reviewCard:executionFailureCard};}}catch{}
   if(Date.now()>=tokenUsageNextRead){tokenUsageNextRead=Date.now()+5000;try{const u=await fetch('/api/token-usage');if(u.ok)tokenUsage=await u.json();else{tokenUsage={unavailableReason:u.status===404?'collector-not-loaded':'usage-unavailable'};tokenUsageNextRead=Date.now()+60000;}}catch{tokenUsage={unavailableReason:'usage-unavailable'};}}
   stateReadError=null;stateReadAt=Date.now();const observedTask=processingState(next);processingObservation=savedProgressObserver.observe(observedTask.key,observedTask.offset,stateReadAt,observedTask.lastSavedAt);
-  if (next.revision === state.revision) {state=next;paintTaskControls();paintProcessingStatus();return;}
-  state = next;
+  if (next.revision === state.revision && next.semanticNavigation?.revision === state.semanticNavigation?.revision) {state=next;updateExecutionSourceViews();paintTaskControls();paintProcessingStatus();return;}
+  state = next;updateExecutionSourceViews();
   paintTaskControls();
   hidden=relationVisibility.hiddenFor(state.types);
   if (selectedEdge)
@@ -272,10 +294,11 @@ function safeMarkdown(body) {
   return marked.parse(body, { renderer, breaks: false });
 }
 const viewHistory=createNavigationHistory();
-function rememberView(){viewHistory.push({view,chosen,vaultId,knowledgeSource,knowledgeQuery,knowledgePage,knowledgeTopic,mainTags:{...mainTagSelections}});}
-function backView(){const previous=viewHistory.pop();if(!previous){if(graph?.selected){graph.fit();return true;}return false;}view=previous.view;chosen=previous.chosen;vaultId=previous.vaultId;knowledgeSource=previous.knowledgeSource;knowledgeQuery=previous.knowledgeQuery;knowledgePage=previous.knowledgePage;knowledgeTopic=previous.knowledgeTopic;for(const k of Object.keys(mainTagSelections))delete mainTagSelections[k];Object.assign(mainTagSelections,previous.mainTags);selectedEdge=null;benchmark=false;if(graph){graph.dispose();graph=null;}render({force:true});return true;}
+function rememberView(){viewHistory.push({libraryRoute:{...libraryRoute},view,chosen,vaultId,knowledgeSource,knowledgeQuery,knowledgePage,knowledgeTopic,mainTags:{...mainTagSelections}});}
+function backView(){const previous=viewHistory.pop();if(!previous){if(graph?.selected){graph.fit();return true;}return false;}libraryRoute=previous.libraryRoute||{domainId:null,projectId:null,nodeId:previous.chosen,query:"",page:0};view=previous.view;chosen=previous.chosen;vaultId=previous.vaultId;knowledgeSource=previous.knowledgeSource;knowledgeQuery=previous.knowledgeQuery;knowledgePage=previous.knowledgePage;knowledgeTopic=previous.knowledgeTopic;for(const k of Object.keys(mainTagSelections))delete mainTagSelections[k];Object.assign(mainTagSelections,previous.mainTags);selectedEdge=null;benchmark=false;if(graph){graph.dispose();graph=null;}render({force:true});return true;}
 installDismissNavigation(document,{back:backView});
 function navigate(v, id) {
+  libraryRoute={domainId:null,projectId:null,nodeId:state.nodes.find(n=>n.id===id)?.kind===v?id:null,query:"",topic:null,page:0};
   if(v!==view||(id&&id!==chosen))rememberView();
   if (v === 'knowledge' && !id) {
     knowledgeSource=null;knowledgeQuery='';knowledgePage=0;
@@ -328,6 +351,18 @@ function current() {
     ns[0]
   );
 }
+function renderLibraryDirectory(){
+ const tree=buildSemanticNavigation(state.nodes,state.semanticNavigation,view),route=libraryRoute,domain=tree.domains.find(d=>d.id===route.domainId),project=tree.projects.find(p=>p.id===route.projectId),page=navContents(tree,route);
+ const button=(attr,id,title,detail='')=>'<button class="nav-card" '+attr+'="'+esc(id)+'"><strong>'+esc(title)+'</strong><small>'+esc(detail)+'</small></button>';
+ let content='';if(!domain&&!project)content=tree.domains.map(d=>button('data-domain',d.id,d.name,d.nodes.length+' 份 · '+d.projectIds.length+' 个项目')).join('');
+ else if(!route.projectId)content=(domain?.projectIds||[]).map(id=>{const p=tree.projects.find(p=>p.id===id);return button('data-project',id,p.name,p.nodes.length+' 份 · '+p.domainIds.length+' 个大标签共享引用');}).join('')+(domain?.unassigned.length?button('data-project',NAV_UNASSIGNED_PROJECT,'尚未归属项目',domain.unassigned.length+' 份；保留原归属状态'):'');
+ else content='<label>查找内容<input id="nav-search" value="'+esc(route.query)+'"></label><div class="main-tags">'+page.topics.map(([t,c])=>button('data-topic',t,t,String(c))).join('')+'</div>'+page.nodes.map(n=>button('data-library-node',n.id,n.title,n.classification?.summary?.slice(0,160)||'原文独立保存')).join('')+'<div><button id="nav-prev" '+(!page.page?'disabled':'')+'>上一页</button> '+(page.page+1)+' / '+page.pages+' · '+page.total+' 份 <button id="nav-next" '+(page.page+1>=page.pages?'disabled':'')+'>下一页</button></div>';
+ $('#main').innerHTML='<article class="article library-directory"><nav><button id="nav-root">'+esc(labels[view])+'</button>'+(domain?' / <button id="nav-domain">'+esc(domain.name)+'</button>':'')+(project?' / '+esc(project.name):route.projectId?' / 尚未归属项目':'')+'</nav><h1>'+esc(project?.name||(route.projectId===NAV_UNASSIGNED_PROJECT?'尚未归属项目':domain?.name)||labels[view])+'</h1><p>'+esc(contentPurposes[view])+'</p><p class="subtle">语义大标签 → 项目 → 内容 / 子主题。项目为同一实体的共享引用；原细标签与原文保留。</p><p id="navigation-status"></p><button id="navigation-update">归纳下一批大标签</button><div class="navigation-cards">'+content+'</div></article>';
+ if(view==='concept'){const tools=document.createElement('div');tools.innerHTML='<button id="concept-plan">查看提炼范围与模板</button><button id="concept-new">新建概念</button>';document.querySelector('.library-directory h1').after(tools);$('#concept-plan').onclick=conceptPlanDialog;$('#concept-new').onclick=conceptCreateDialog;}
+ const navButton=$('#navigation-update');if(navButton){fetch('/api/navigation/status').then(async r=>{if(!r.ok)throw Error('导航索引入口待同版本加载');const s=await r.json();if(!Number.isFinite(s.totalLabels))throw Error('导航索引入口待同版本加载');return s;}).then(s=>{if(!navButton.isConnected)return;$('#navigation-status').textContent='标签范围 '+s.totalLabels+' · 已有当前依据 '+s.mappedLabels+' · 待归纳 '+s.pendingLabels+' · 依据不足 '+(s.unresolvedLabels||0)+' · 已隔离未完成 '+(s.deferredLabels||0);navButton.disabled=!s.canRun||!s.pendingLabels;navButton.textContent=s.libraryPaused?'归纳下一批大标签（全库保持暂停）':'归纳下一批大标签';navButton.title=s.canRun?'每次最多40标签，仅一次模型调用':'现有任务运行或已暂停，本批未启动';const old=document.querySelector('#navigation-issues');old?.remove();const issues=document.createElement('section');issues.id='navigation-issues';issues.innerHTML=(s.issues||[]).map(i=>'<div><strong>'+esc(i.operationId)+'</strong><p>'+esc(i.reason)+'</p><p>'+esc(i.labels.join('、'))+'</p>'+(i.canRecover?'<button data-nav-recover="'+esc(i.operationId)+'">续交已保存返回（不重调模型）</button>':'<p>无可续交返回或旧模型未核实退出，保留预算；不会用新操作ID自动重试。</p>')+(i.canDefer?'<button data-nav-defer="'+esc(i.operationId)+'">隔离本批，先处理其他标签</button>':'<p>此批已隔离，未计完成；原资料、返回和预算保留，源版本变化后重新纳入。</p>')+'</div>').join('');navButton.after(issues);issues.querySelectorAll('[data-nav-defer]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await api('navigation/defer',{operationId:b.dataset.navDefer});render({force:true});}catch(e){toast(e.message);render({force:true});}});issues.querySelectorAll('[data-nav-recover]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await api('navigation/recover',{operationId:b.dataset.navRecover});await refresh();render({force:true});}catch(e){toast(e.message);b.disabled=false;}});}).catch(()=>{navButton.disabled=true;if($('#navigation-status'))$('#navigation-status').textContent='语义索引维护入口待同版本安全加载；原资料与归属保留。';});navButton.onclick=async()=>{navButton.disabled=true;try{await api('navigation/update',{operationId:crypto.randomUUID()});await refresh();render({force:true});}catch(e){toast(e.message);render({force:true});}};}
+ const change=patch=>{rememberView();libraryRoute={...libraryRoute,...patch,nodeId:null};render({force:true});};$('#nav-root').onclick=()=>change({domainId:null,projectId:null,query:'',topic:null,page:0});if($('#nav-domain'))$('#nav-domain').onclick=()=>change({projectId:null,page:0});
+ $$('[data-domain]').forEach(b=>b.onclick=()=>change({domainId:b.dataset.domain,projectId:null,page:0}));$$('[data-project]').forEach(b=>b.onclick=()=>change({projectId:b.dataset.project,page:0}));$$('[data-library-node]').forEach(b=>b.onclick=()=>{rememberView();chosen=b.dataset.libraryNode;libraryRoute.nodeId=chosen;if(view==='vault')vaultId=chosen;render({force:true});});$$('[data-topic]').forEach(b=>b.onclick=()=>change({topic:route.topic===b.dataset.topic?null:b.dataset.topic,page:0}));if($('#nav-search'))$('#nav-search').onchange=e=>change({query:e.target.value,page:0});if($('#nav-prev'))$('#nav-prev').onclick=()=>change({page:page.page-1});if($('#nav-next'))$('#nav-next').onclick=()=>change({page:page.page+1});$('#inspector').innerHTML='<h3>'+esc(labels[view])+'</h3><p>按语义大标签和项目浏览。选择具体内容后显示其来源与版本。</p>';
+}
 async function render({force=false}={}) {
   const liveEditor=document.querySelector('[data-inline-node]'),liveNode=current();
   if(liveEditor&&liveNode&&!view.endsWith('-network')&&liveEditor.dataset.inlineNode===liveNode.id){
@@ -340,6 +375,7 @@ async function render({force=false}={}) {
     b.classList.toggle("active", b.dataset.view === view);
   if (view.endsWith("-network")) return renderNetwork();
   if(view==='journal')return renderJournal();
+  if(['vault','knowledge','skill','concept'].includes(view)&&!libraryRoute.nodeId)return renderLibraryDirectory();
   const nodes = relevant(),
     n = current();
   if (n) {
@@ -443,7 +479,10 @@ async function render({force=false}={}) {
       chosen = null;
       render({force:true});
     };
-  if(n)bindInlineEditor(n);
+  if(n){const filePanel=document.querySelector('main > .file-panel');if(filePanel){const tree=buildSemanticNavigation(state.nodes,state.semanticNavigation,view),siblings=navContents(tree,libraryRoute);filePanel.innerHTML='<button id="library-return">← 内容目录</button><h3>'+esc(labels[view])+'</h3>'+siblings.nodes.map(x=>'<button class="file-row '+(x.id===n.id?'selected':'')+'" data-library-sibling="'+esc(x.id)+'">'+esc(x.title)+'</button>').join('')+'<p class="subtle">当前目录 '+siblings.total+' 份，先显示本页 '+siblings.nodes.length+' 份。完整翻页与筛选在内容目录中。</p>';$('#library-return').onclick=()=>{chosen=null;libraryRoute.nodeId=null;render({force:true});};document.querySelectorAll('[data-library-sibling]').forEach(b=>b.onclick=()=>{rememberView();chosen=b.dataset.librarySibling;libraryRoute.nodeId=chosen;if(view==='vault')vaultId=chosen;render({force:true});});}}
+  if(n&&$("#inline-save"))bindInlineEditor(n);
+  if(n?.kind==="concept"&&!conceptEditing.has(n.id)){document.querySelectorAll(".concept-readable h1,.concept-readable h2,.concept-readable h3").forEach((h,i)=>h.id="concept-section-"+i);$("#concept-edit").onclick=()=>{conceptEditing.add(n.id);render({force:true});};}
+  if(n){const a=$(".article");if(a){const back=document.createElement("button");back.textContent="← 内容目录";back.onclick=()=>{chosen=null;libraryRoute.nodeId=null;render({force:true});};const parentPath=document.createElement('nav');parentPath.className='document-parent-path';parentPath.setAttribute('aria-label','父级目录');const tree=buildSemanticNavigation(state.nodes,state.semanticNavigation,view);const add=(title,patch)=>{const b=document.createElement('button');b.textContent=title;b.onclick=()=>{rememberView();libraryRoute={...libraryRoute,...patch,nodeId:null};chosen=null;render({force:true});};parentPath.append(b);};add(labels[view],{domainId:null,projectId:null,page:0});const d=tree.domains.find(d=>d.id===libraryRoute.domainId);if(d)add(d.name,{projectId:null,page:0});if(libraryRoute.projectId){const p=tree.projects.find(p=>p.id===libraryRoute.projectId);add(p?.name||(libraryRoute.projectId===NAV_UNASSIGNED_PROJECT?'尚未归属项目':'项目待核对'),{page:0});}parentPath.append(back);a.prepend(parentPath);}}
   if(view==='vault')groupProjectEntries();
   if(n?.kind==='vault'){
     const article=document.querySelector('.article .metadata');if(article){article.insertAdjacentHTML('afterend','<div id="source-layer-progress" class="source-layer-progress"></div>');renderLayerControls($('#source-layer-progress'),n.id,{tr,esc,api,toast});}
@@ -461,7 +500,7 @@ async function render({force=false}={}) {
   if (n) {
     $(".article .metadata").insertAdjacentHTML(
       "afterend",
-      '<div class="article-classification">' + mainTagsHTML(n) + classificationHTML(n) + "</div>",
+      '<div class="article-classification">' + mainTagsHTML(n) + classificationHTML(n) + projectDecisionHTML(n) + "</div>",
     );
     bindClassification();
   }
@@ -526,6 +565,7 @@ async function conceptPlanDialog(){
   modal(tr('概念云 · 提炼范围与模板'),'<p>'+tr('只读取 Vault 原始对话，不经过 AI 知识点或 AI 技能；不外网验证、不改写原文。')+'</p>'+(plan?'<p>'+tr('待处理原文：')+plan.sourceCount+tr(' 篇；剩余字符：')+plan.remainingCharacters+tr('；预计分段调用：')+plan.estimatedModelCalls+'</p><p>'+tr('历史缺失概念预计分段调用：')+(plan.estimatedHistoryCalls||0)+tr('；本批完成后，五路中最多使用一路补提。')+'</p><p>'+tr('概念随现有后续分段一并提炼，不额外增加当次模型调用；本批完成后再仅补历史概念。查看范围不触发调用。')+'</p>':'<p>'+tr('当前后端尚未加载概念存储与增量接入；模板可查看，历史补提尚未启动。')+'</p>')+'<pre class="concept-template">'+esc(template)+'</pre>',async()=>{},tr('关闭'));
 }
 function article(n) {
+  if(n.kind==="concept"&&!conceptEditing.has(n.id)){const readable=String(n.body||'').replace(/^# [^\r\n]+\r?\n/,'');const headings=[...readable.matchAll(/^#{1,3}\s+(.+)$/gm)].map(m=>m[1]);return `<article class="article concept-document"><h1>${esc(n.title)}</h1><div class="metadata">${esc(n.conceptStance||"讨论假设")}</div><button id="concept-edit">编辑概念</button><nav aria-label="专题目录">${headings.map((h,i)=>`<a href="#concept-section-${i}">${esc(h)}</a>`).join(" · ")}</nav><div class="concept-readable">${safeMarkdown(readable)}</div><details><summary>查看原文依据片段</summary>${(n.sources||[]).map(x=>`<button data-node="${esc(x.id)}">${esc(state.nodes.find(y=>y.id===x.id)?.title||x.id)}</button><blockquote>${esc(x.quote||"")}</blockquote>`).join("")}</details></article>`;}
   const draft=inlineDrafts.open(n),size = 24000, count = Math.max(1, Math.ceil(draft.body.length / size));
   const page = Math.min(count - 1, readingPages.get(n.id) || 0);
   readingPages.set(n.id,page);
@@ -598,7 +638,7 @@ function renderInspector() {
       tr("<h3>分类与关系</h3>") +
       taxonomyFiltersHTML(kind)+
       '<p class="metric">'+tr('默认显示完整项目星云及全部所属节点；点击节点聚焦，查看全图显示整个星云。项目筛选仍生效，文字随距离缩小、隐藏。')+'</p>'+
-      '<p class="metric">'+tr('同标签：3 份独立来源列为候选，5 份自动成为项目。')+' '+tr('自动项目：')+(state.recurringProjects||[]).filter(p=>p.status==='promoted').length+' · '+tr('候选：')+(state.recurringProjects||[]).filter(p=>p.status==='candidate').length+'</p>'+
+      '<p class="metric">'+(state.semanticNavigation?.version===1?tr('语义大标签依据模型理解；项目按稳定身份共享引用，依据不足保留待归纳，不用同词频次代替归属。'):tr('同标签：3 份独立来源列为候选，5 份自动成为项目。')+' '+tr('自动项目：')+(state.recurringProjects||[]).filter(p=>p.status==='promoted').length+' · '+tr('候选：')+(state.recurringProjects||[]).filter(p=>p.status==='candidate').length)+'</p>'+
       categoryFilterHTML(kind) +
       tr('<h4>关系类型 · 多选筛选</h4><button class="text-button" id="select-all">全部显示</button>') +
       relationDisplayTypes(state.types)
@@ -697,7 +737,7 @@ function renderInspector() {
     );
     if ($("#edge-edit"))
       $("#edge-edit").onclick = () => relationDialog(selectedEdge, n);
-    bindNodes($("#inspector"));
+    bindNodes($("#inspector"));bindRecoveryActions();
     if(n){
       const neighbours=linkedNeighbours(state.nodes,state.relations,n.id,state.types);
       graph.setNavigation?.(neighbours,jumpToNeighbour);
@@ -768,12 +808,12 @@ function renderInspector() {
         esc(n.occupations || tr("证据不足，待补充")) +
         tr('</p><h4>程度说明</h4><p class="subtle">涉及 → 实践 → 验证<br>升级判断需要相应材料支持。</p>')
       : "") +
-    tr('<div class="rule"></div><button id="history-open" class="wide">版本历史与回退</button>');
+    sourceRecoveryHTML(n.id)+tr('<div class="rule"></div><button id="history-open" class="wide">版本历史与回退</button>');
   $("#history-open").onclick = () => historyDialog(n);
   if($('#unmerge-open'))$('#unmerge-open').onclick=async()=>{
     try{await api('unmerge',{targetId:n.id,expectedHash:n.hash});await refresh();await render();toast(tr('已还原独立文件，合并版本仍可追溯'));}catch(error){toast(error.message);}
   };
-  bindNodes($("#inspector"));
+  bindNodes($("#inspector"));bindRecoveryActions();
 }
 function jumpToNeighbour(id){
   if(!graph?.selected)return;
@@ -902,7 +942,7 @@ function jobsDialog() {
             "</button>") + '</div>',
         )
         .join("") +
-      (a.issues||[]).map(i=>'<details class="analysis-issue"><summary>'+esc(state.nodes.find(n=>n.id===i.sourceId)?.title||i.sourceId)+tr(' · 待核对说明</summary>')+i.messages.map(m=>'<p class="metric">'+esc(m)+'</p>').join('')+(i.error?'<p class="metric">'+esc(i.error)+'</p>':'')+'</details>').join('')+
+      (a.issues||[]).map(i=>'<details class="analysis-issue"><summary>'+esc(state.nodes.find(n=>n.id===i.sourceId)?.title||i.sourceId)+tr(' · 待核对说明</summary>')+i.messages.map(m=>'<p class="metric">'+esc(m)+'</p>').join('')+(i.error?'<p class="metric">'+esc(i.error)+'</p>':'')+sourceRecoveryHTML(i.sourceId)+'<p>先查看这份资料的原文与具体问题；已取消的旧流程不会因此重开。</p><button type="button" data-issue-source="'+esc(i.sourceId)+'">打开这份原文</button></details>').join('')+
       tr('<p class="metric">当前分析继续使用原有接入。其他模型可单独配置，保存不会切换在途请求。</p><button type="button" id="provider-open">模型与本地 AI 接入</button>')+' <button type="button" id="mcp-open">'+tr('MCP 连接')+'</button>',
     null,
   );
@@ -1238,10 +1278,10 @@ function classificationHTML(n) {
   return (
     tr('<section class="classification-section"><h4>归纳分类') +
     (n.classificationNeedsReview || n.analysisNeedsReview ? tr(" · 依据待复核") : "") +
-    '</h4><p class="subtle">' +
+    '</h4><p class="subtle"'+(!n.classification?.summary?' data-classification-placeholder="'+esc(n.id)+'"':'')+'>' +
     esc(
       n.classification?.summary ||
-        tr("已进入后台自动处理队列，归纳完成后会显示分类与依据。"),
+        classificationPlaceholder(state.execution),
     ) +
     '</p><div class="category-chips">' +
     (n.categories || [])
@@ -1319,14 +1359,10 @@ let graphData;
 function updateGraph() {
   if (!graph) return;
   const kind = view.replace("-network", "");
-  const nodes = state.nodes.filter((n) => n.kind === kind && !n.mergedInto),
-    ids = new Set(nodes.map((n) => n.id));
+  const {nodes,edges}=projectLayerRelations(state.nodes,state.relations,kind);
   graphData = {
     nodes,
-    edges: state.relations.map(r=>({...r,
-      from:state.nodes.find(n=>n.id===r.from)?.mergedInto||r.from,
-      to:state.nodes.find(n=>n.id===r.to)?.mergedInto||r.to,
-    })).filter((r) => r.from!==r.to && ids.has(r.from) && ids.has(r.to)),
+    edges,
     positions: state.positions,
     layoutEpoch:state.layoutEpochs?.[kind]||0,
     types: state.types,
@@ -1408,7 +1444,7 @@ function renderNetwork() {
       },
       onStats: (s) => {
         $("#graph-area").dataset.layoutSteps = String(s.layoutSteps);
-        if(benchmark)$("#graph-area").dataset.runtimeMetrics=JSON.stringify(s.runtimeMetrics);
+        $("#graph-area").dataset.runtimeMetrics=JSON.stringify(s.runtimeMetrics);
         $("#graph-area").dataset.layoutSample = JSON.stringify(
           graph?.renderNodes
             ?.slice(0, 3)

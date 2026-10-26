@@ -20,6 +20,12 @@ A visual, editable, traceable personal knowledge-base tool for you and your AI.
 Knowledge coverage depends on how much relevant source material you provide and how complete it is. Extraction quality depends on the actual understanding and summarization ability of your chosen model, the input material and your instructions. The resulting network is not a complete representation of your personality or a certification of your abilities. Venus does not guarantee correct automatic summaries or certify proficiency. Your own AI can organize and write material through a tool-capable Agent/Harness, such as Codex but not limited to it. Without an Agent, you can still read, retrieve and edit existing data.
 
 
+## What changed in 0.8.0
+
+Venus now coordinates its enabled local update and saved-checkpoint continuation inside the app, so an ongoing job does not need a chat reminder loop. Organization uses shared semantic domains, stable project references and content/subtopics across four layers with different roles. Rules and confirmed layer templates can be updated while original sources and existing manual choices remain traceable.
+
+See [the 0.8.0 update](UPDATE-NOTES-0.8.0.md) and [the four-layer workflow with generic examples](docs/FOUR-LAYERS.md). This is not automatic access to every conversation, arbitrary self-modification or error-free AI organization.
+
 ## A place to start
 
 Already have Codex but not sure where to start? Turn your conversations into a personal knowledge base that helps your AI understand your projects, decisions, and working style.

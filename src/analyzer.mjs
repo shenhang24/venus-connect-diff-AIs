@@ -1,7 +1,10 @@
+import {readNavigationIndex} from './navigation-index.mjs';
+import {consumeGeneratedNavigation} from './semantic-navigation-producer.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {hash} from './store.mjs';
 import {createModelRunner} from './analysis-model.mjs';
+import {classificationExecutorActive} from './classification-lock.mjs';
 import {knowledgeSimilarity,normalizedKnowledge,KNOWLEDGE_SIMILARITY_THRESHOLD} from './knowledge-similarity.mjs';
 import {validateContentTitle} from './content-titles.mjs';
 import {skillMethodPolicy} from './skill-methods.mjs';
@@ -140,6 +143,8 @@ export class AutoAnalyzer {
     if((this.store.state.reviewRequests?.[entry.sourceId]||'')!==(entry.reviewToken||''))throw new Error('SOURCE_CHANGED');
   }
   async tick(){
+    if(this.draining)return;
+    if(classificationExecutorActive(this.store.root))return;
     for(const file of this.active.values())
       if(this.store.state.jobs.find(j=>j.sourceId===file.sourceId)?.status==='paused')file.controller.abort();
     const occupied=(this.store.layerPipeline?.active.size||0)+(this.store.layerPipeline?.externalSlots()||0);
@@ -213,6 +218,7 @@ export class AutoAnalyzer {
       let result;
       if(fs.existsSync(artifact))result=JSON.parse(fs.readFileSync(artifact,'utf8'));
       else{
+        payload.semanticNavigationCatalog=readNavigationIndex(this.store.meta).domains;
         result=await this.runner(payload,{signal:controller.signal});
       }
       this.checkActive(entry);
@@ -236,6 +242,7 @@ export class AutoAnalyzer {
       const finished=entry.offset>=source.body.length;
       if(finished)entry.phase=3;
       this.classifySource(source,entry,finished);
+      consumeGeneratedNavigation(this.store,result,source,this.runner.providerDescription?.model||"unknown");
       entry.status=finished?'done':'queued';
       this.store.job({sourceId:source.id,status:finished?'done':'queued',stage:finished?
         `自动归纳、知识关系与技能整合完成；${entry.parts.length} 段${entry.issues.length?'；有 '+entry.issues.length+' 条待核对说明':''}`:
@@ -409,6 +416,7 @@ export class AutoAnalyzer {
       let id=item.existingId&&existing?existing.id:canonical(kind,kind==='knowledge'?source.id+'|'+item.key:item.key),old=this.store.nodes.find(n=>n.id===id);
       if(kind==='knowledge'&&old){const similarity=knowledgeSimilarity(old.body,body);entry.similarityDecisions||=[];entry.similarityDecisions.push({existingId:old.id,similarity,threshold:KNOWLEDGE_SIMILARITY_THRESHOLD,action:similarity>=KNOWLEDGE_SIMILARITY_THRESHOLD?'reuse':'separate'});entry.similarityDecisions=entry.similarityDecisions.slice(-100);if(similarity<KNOWLEDGE_SIMILARITY_THRESHOLD){id=canonical(kind,source.id+'|'+item.key+'|'+hash(normalizedKnowledge(body)));old=this.store.nodes.find(n=>n.id===id);}}
       if(kind==='skill'&&old?.methodPolicy?.status==='user-confirmed'&&(extra.methodPolicy?.status!=='user-confirmed'||extra.methodPolicy.scope!==old.methodPolicy.scope||extra.methodPolicy.limitations!==old.methodPolicy.limitations||extra.methodPolicy.recognitionTarget!==old.methodPolicy.recognitionTarget)){id=canonical(kind,item.key+'|'+source.id+'|'+hash(JSON.stringify([extra.methodPolicy?.status,extra.methodPolicy?.scope,extra.methodPolicy?.limitations,extra.methodPolicy?.recognitionTarget])));old=this.store.nodes.find(n=>n.id===id);}
+      if(this.store.suppressedDerivation({id,kind,title:item.title,body,sources,generationKey:item.key})){entry.suppressed||=[];entry.suppressed.push({id,kind,sourceId:source.id,reason:'用户已删除此来源生成项，不自动重建'});entry.issues.push({segment:part.start,text:'用户删除的生成项已保留抑制记录：'+item.title});return null;}
       const previous=(old?.sources||[]).filter(s=>this.store.sourceQuoteValid(s));
       const merged=[...new Map([...previous,...sources].map(s=>[s.id+'|'+s.quote,s])).values()];
       if(old&&this.store.state.manualEdits?.[id]){
@@ -422,7 +430,7 @@ export class AutoAnalyzer {
         extra.level=old.level;
         combined+='\n\n'+(analysisLanguage(body)==='zh'?'既有来源中的程度证据仍保留，当前新增材料不构成新的独立验证。':'Existing level evidence remains in the source chain; this addition is not new independent verification.');
       }
-      const node=this.store.upsert({id,kind,title:item.title,body:combined,sources:merged,expectedHash:old?.hash,decision:old?'补充':'新增',...extra});
+      const node=this.store.upsert({id,kind,title:item.title,body:combined,sources:merged,expectedHash:old?.hash,decision:old?'补充':'新增',generationKey:item.key,...extra});
       references.set(item.key,id);references.set(id,id);remember(id);
       if(node.classification?.method!=='manual')this.store.classify({id,summary:item.body.slice(0,800),tags:[{name:item.category.slice(0,40),reason:item.categoryReason,quote:node.body.slice(0,120)}],
         expectedHash:node.classificationHash,sourceHash:node.hash,method:'codex'});
@@ -440,7 +448,7 @@ export class AutoAnalyzer {
     }
     for(const s of result.skills){
       const sources=s.knowledgeKeys.map(key=>this.store.nodes.find(n=>n.id===references.get(key))).filter(n=>n?.kind==='knowledge').map(n=>({id:n.id,quote:n.body.slice(0,180),sourceHash:n.hash}));
-      if(!sources.length)throw new Error('技能缺少已保存的知识点');
+      if(!sources.length){if(entry.suppressed?.length){entry.issues.push({segment:part.start,text:'技能依据已由用户删除，本候选未重建；删除记录保留。'});continue;}throw new Error('技能缺少已保存的知识点');}
       const body=analysisLanguage(s.body)==='en'?`# ${s.title}\n\n## Capability\n\n${s.body}\n\n## Level and limits\n\n${s.level==='实践'?'The source contains self-reported practice, not independent verification.':'The material mentions this capability; it does not establish proficiency or verification.'}\n\n${s.practiceQuote||''}`:
         `# ${s.title}\n\n## 能做什么\n\n${s.body}\n\n## 程度与边界\n\n${s.level==='实践'?'原文含用户自述实践，不等于独立验证。':'材料只支持涉及该能力，不代表已掌握或已验证。'}\n\n${s.practiceQuote||''}`;
       const methodPolicy=skillMethodPolicy({scope:s.methodScope||'',limitations:s.methodLimitations||'',declaredOrigin:s.methodOrigin||'unknown',recognitionKind:s.methodRecognition?.kind||'unconfirmed',recognitionQuote:s.methodRecognition?.quote||'',recognitionTarget:s.methodRecognition?.target||'',sourceId:source.id,sourceHash:source.hash,readRange:{start:part.start,end:part.end}},source,body);

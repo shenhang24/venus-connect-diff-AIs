@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {hash} from './store.mjs';
+import {templateRuntimeGuide} from './template-runtime-guide.mjs';
 
-const defaults={knowledge:'# 主题\n\n## 提取的知识\n\n## 判断边界\n\n## 原文依据',skill:'# 主题\n\n## 能做什么\n\n## 适用范围\n\n## 程度与边界',concept:'# 主题\n\n## 综述\n\n## 概念\n\n## 认识性质'};
-const help={knowledge:'提取的知识：资料支持的事实或方法。判断边界：条件、来源立场和不确定性。原文依据：可定位的依据。',skill:'能做什么：可操作的方法或能力。适用范围：使用条件。程度与边界：涉及、实践及尚未验证部分。',concept:'综述：原问题和目的。概念：形成的核心认识及理由。认识性质：用户观点、助手建议、假设或已确认结论。'};
+const defaults={knowledge:'# 主题\n\n## 提取的知识\n\n## 判断边界\n\n## 原文依据',skill:'# 主题\n\n## 可复用 Prompt\n\n## 共用设定与稳定身份\n\n## 变体差异与本次增量\n\n## 适用条件与负例\n\n## 依据与未确认边界',concept:'# 主题\n\n## 综述\n\n## 概念\n\n## 认识性质'};
+const help={knowledge:'提取的知识：资料支持的事实或方法。判断边界：条件、来源立场和不确定性。原文依据：可定位的依据。',skill:'可复用 Prompt：完整任务、输入、步骤与输出合同。共用设定与稳定身份：保留实体引用和来源。变体差异与本次增量：不混合其他版本。适用条件与负例：何时使用、何时停止。依据与未确认边界：缺失、不确定与认可状态，不据此声称用户掌握。',concept:'综述：原问题和目的。概念：形成的核心认识及理由。认识性质：用户观点、助手建议、假设或已确认结论。'};
 const fail=(s,status=400)=>{throw Object.assign(Error(s),{status});};
 export function templateSections(markdown){
  if(typeof markdown!=='string'||markdown.length>20000)fail('模板需为不超过 20000 字符的 Markdown');
@@ -14,8 +15,8 @@ export function templateSections(markdown){
 }
 export class AnalysisTemplates{
  constructor(meta){this.file=path.join(meta,'analysis-templates.json');this.state=fs.existsSync(this.file)?JSON.parse(fs.readFileSync(this.file,'utf8')):{version:1,entries:{}};}
- get(kind){if(!Object.hasOwn(defaults,kind))fail('分析层无效');return this.state.entries[kind]||{kind,markdown:defaults[kind],help:help[kind],confirmed:false,revision:0,hash:hash(defaults[kind])};}
- list(){return {items:Object.keys(defaults).map(k=>this.get(k)),note:'帮助说明不进入模型输入；确认模板只影响后续分析，旧内容重分析须另选范围。'};}
+ get(kind){if(!Object.hasOwn(defaults,kind))fail('分析层无效');return this.state.entries[kind]||{kind,markdown:defaults[kind],help:help[kind]+'\n\n'+templateRuntimeGuide.markdown,confirmed:false,revision:0,hash:hash(defaults[kind])};}
+ list(){return {runtimeGuide:templateRuntimeGuide,items:Object.keys(defaults).map(k=>this.get(k)),note:'帮助说明不进入模型输入；确认模板只影响后续分析，旧内容重分析须另选范围。'};}
  save({kind,markdown,help:explanation='',expectedHash,confirm=false}){
   templateSections(markdown);const old=this.get(kind);if(old.hash!==expectedHash)fail('模板已变化，请重新读取',409);if(typeof explanation!=='string'||explanation.length>20000)fail('帮助说明过长');
   const entry={kind,markdown,help:explanation,revision:old.revision+1,hash:hash(JSON.stringify([markdown,explanation,old.revision+1])),confirmed:confirm===true,updatedAt:new Date().toISOString(),active:confirm?{markdown,sections:templateSections(markdown),version:old.revision+1,hash:hash(markdown)}:old.active||null};

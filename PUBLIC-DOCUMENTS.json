@@ -1,5 +1,5 @@
 {
-  "version": "0.7.0",
+  "version": "0.8.0",
   "publicationLanguage": "en",
   "canonicalReadme": "README.md",
   "publicDocuments": [
@@ -18,12 +18,15 @@
     "THIRD-PARTY-NOTICES.md",
     "UI-LANGUAGE.md",
     "UPDATE-NOTES-0.6.0.md",
+    "UPDATE-NOTES-0.7.0.md",
+    "UPDATE-NOTES-0.8.0.md",
     "UPDATE-NOTES-2026-10-19.md",
     "codex-plugin/QUERY.md",
     "codex-plugin/skills/venus-analyze/SKILL.md",
     "docs/ARCHITECTURE.md",
     "docs/CREDITS.md",
     "docs/DEPLOYMENT.md",
+    "docs/FOUR-LAYERS.md",
     "docs/INTEGRATIONS.md",
     "docs/LICENSE-STATUS.md",
     "docs/PAGE-TOUR.md",
@@ -32,8 +35,7 @@
     "docs/SCREENSHOTS-0.6.0.md",
     "examples/sample-conversation.md",
     "examples/sample.md",
-    "templates/concept.md",
-    "UPDATE-NOTES-0.7.0.md"
+    "templates/concept.md"
   ],
   "screenshots": "Eleven real Chrome captures of synthetic English sample data; no live extraction.",
   "thirdPartyNotices": "Retained unchanged."

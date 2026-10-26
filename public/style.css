@@ -157,7 +157,7 @@ header {
   font-size: 14px;
   font-weight: 500;
 }
-nav {
+header nav {
   height: 100%;
   display: flex;
   align-items: flex-end;
@@ -165,7 +165,7 @@ nav {
   min-width: 0;
   overflow: hidden;
 }
-nav button {
+header nav button {
   height: 35px;
   min-width: 122px;
   max-width: 180px;
@@ -178,7 +178,7 @@ nav button {
   border: none;
   margin-bottom: -1px;
 }
-nav button:after {
+header nav button:after {
   content: "";
   position: absolute;
   right: 0;
@@ -186,11 +186,11 @@ nav button:after {
   height: 16px;
   border-right: 1px solid #3c3c3c;
 }
-nav button.active {
+header nav button.active {
   background: var(--bg);
   color: #e1e1e1;
 }
-nav button.active:after {
+header nav button.active:after {
   display: none;
 }
 .connection {
@@ -1048,7 +1048,7 @@ label.field {
     --sidebar-width: 224px;
     --inspector-width: 250px;
   }
-  nav button {
+  header nav button {
     min-width: 100px;
     padding: 0 13px;
   }
@@ -1095,7 +1095,7 @@ label.field {
   .brand {
     width: 200px;
   }
-  nav button {
+  header nav button {
     min-width: 86px;
     padding: 0 10px;
   }
@@ -1619,3 +1619,33 @@ dialog { width:min(620px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-he
 
 .ai-ribbon-entries button.ai-connected {color:#a0ecc4;background:#163b2a;box-shadow:inset 0 0 0 1px #438e68,0 0 9px #5ed39b33;position:relative;}
 .ai-ribbon-entries button.ai-connected::after {content:"";position:absolute;right:5px;bottom:5px;width:6px;height:6px;border-radius:50%;background:#82e7ac;box-shadow:0 0 5px #82e7ac;}
+
+/* Problem summaries stay in their pane; detailed evidence has its own bounded scroll. */
+.workspace,.sidebar,.inspector,.article-scroll{min-height:0;}
+.sidebar-bottom{max-height:48dvh;overflow:auto;min-height:0;}
+.recovery-actions{min-width:0;overflow-wrap:anywhere;}
+.issue-compact{border-top:1px solid var(--line);padding-top:6px;}
+.issue-compact p{margin:5px 0;}
+.issue-brief,.issue-next{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;}
+.issue-evidence-scroll{max-height:30dvh;overflow:auto;overscroll-behavior:contain;min-width:0;}
+.issue-evidence-scroll blockquote{margin:6px 0;padding-left:8px;border-left:2px solid var(--accent);white-space:pre-wrap;overflow-wrap:anywhere;}
+.recovery-actions>button{display:block;width:100%;text-align:left;margin:3px 0;background:var(--panel-alt);border-color:var(--line);}
+.inspector .issue-evidence-scroll{max-height:40dvh;}
+
+/* The narrow rail shows the actionable problem; full timestamps/evidence remain in details. */
+#job-summary:has(.issue-compact)>.processing-details,#job-summary:has(.issue-compact)>p{display:none;}
+.recovery-actions:has(.issue-compact)>p{display:none;}
+.sidebar-bottom .issue-next{-webkit-line-clamp:2;}
+.sidebar-bottom .issue-brief{-webkit-line-clamp:3;}
+.sidebar-bottom .issue-compact{padding-top:3px;}
+.sidebar-bottom:has(.issue-compact){max-height:52dvh;}
+
+#template-runtime-guide pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.6}
+.navigation-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:20px 0}.nav-card{display:flex;flex-direction:column;gap:8px;text-align:left;padding:18px;min-height:86px}.nav-card small{opacity:.7;line-height:1.6}.library-directory{width:100%;max-width:1100px;margin:0 auto}.concept-readable{line-height:1.85;max-width:900px}.concept-document nav{line-height:2.1;margin:18px 0}.concept-readable h2,.concept-readable h3{scroll-margin-top:30px}
+
+/* Content directory: labels and counts keep separate columns; only the tree scrolls. */
+.sidebar-scroll{flex:0 1 auto;min-height:180px;max-height:55dvh;overflow:auto}.sidebar .side-link{gap:7px;min-width:0;white-space:nowrap}.sidebar .side-link .count{flex:0 0 auto;font-variant-numeric:tabular-nums;min-width:32px;text-align:right}.sidebar .side-link>span:first-child{flex:0 0 17px}.sidebar #workspace-open{white-space:normal;overflow-wrap:anywhere}.sidebar .network-navigation{margin-top:0}.sidebar .sidebar-bottom{margin-top:auto;max-height:42dvh;overflow:auto}.library-directory{padding:22px 24px 40px;overflow:auto;min-width:0;max-height:100%}.library-directory>nav,.concept-document>nav{height:auto;display:flex;align-items:center;flex-wrap:wrap;gap:8px;flex:none}.library-directory>h1{margin:20px 0;width:auto}.concept-document{padding:20px 28px 40px}.concept-document>h1{margin:20px 0}.navigation-cards{align-content:start}.nav-card{overflow-wrap:anywhere;min-width:0}.library-directory .main-tags{max-height:180px;overflow:auto}@media(min-width:1001px){:root{--sidebar-width:216px}}@media(max-width:680px){.library-directory{padding:14px}.navigation-cards{grid-template-columns:minmax(0,1fr)}}
+
+.sidebar{overflow-y:auto;overscroll-behavior:contain}@media(max-height:700px){.sidebar-scroll{min-height:0;flex:0 0 auto;max-height:38dvh}.sidebar .sidebar-bottom{flex:0 0 auto;max-height:36dvh}.sidebar .network-navigation{flex:0 0 auto}.sidebar .workspace-name{flex:0 0 34px}}
+
+.document-parent-path{height:auto;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line)}.document-parent-path button{white-space:normal;text-align:left}.concept-document .document-parent-path{padding-left:0}

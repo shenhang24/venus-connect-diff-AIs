@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {AffinityLayout} from '../public/layout.js';
+test('shared-tour membership keeps ordered nearest shared ancestors through nested groups and metadata rebuilds',()=>{
+ const nodes=[{id:'sun',kind:'knowledge',isMainTag:true,domainConnectionCount:100},{id:'other',kind:'knowledge',isMainTag:true,domainConnectionCount:10},...['a','b','leaf','deep'].map(id=>({id,kind:'knowledge'}))];
+ const edges=['a','b'].flatMap(to=>['sun','other'].map(from=>({from,to,membershipLink:true,strength:1}))).concat([{from:'a',to:'leaf',type:'contains',strength:1,sources:[{quote:'explicit parent'}]},{from:'leaf',to:'deep',type:'contains',strength:1,sources:[{quote:'explicit deep parent'}]}]);
+ const l=new AffinityLayout();for(let revision=0;revision<2;revision++){l.sync({nodes:nodes.map(n=>({...n,sources:[{id:'revision-'+revision}]})),edges});for(const group of l.sharedOrbits){const expected=nodes.map((n,i)=>{let id=n.id;while(l.orbits[id]&&!l.sharedOrbitIds.has(id))id=l.orbits[id].host;return id===group.id?i:-1;}).filter(i=>i>=0);assert.deepEqual(group.memberIndices,expected);}assert.deepEqual(l.sharedOrbits.find(g=>g.id==='a').memberIndices,[2,4,5]);assert.deepEqual(l.sharedOrbits.find(g=>g.id==='b').memberIndices,[3]);}
+});

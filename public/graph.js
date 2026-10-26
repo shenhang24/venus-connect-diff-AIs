@@ -43,6 +43,18 @@ export function labelLimits(width, height) {
   return { nodes: Math.max(3, Math.min(18, Math.floor(area / 45000))), reasons: Math.max(1, Math.min(5, Math.floor(area / 180000))) };
 }
 
+// Exact broad-phase index for swept radial envelopes; final geometry checks stay unchanged.
+export class RadialEnvelopeIndex{
+ constructor(){this.root=null;this.sequence=0;}
+ add(value){const lo=.98*value.radius-value.extent,hi=1.02*value.radius+value.extent,node={lo,hi,max:hi,value,order:this.sequence++,height:1,left:null,right:null};this.root=this.insert(this.root,node);}
+ height(n){return n?.height||0;}
+ refresh(n){n.height=1+Math.max(this.height(n.left),this.height(n.right));n.max=Math.max(n.hi,n.left?.max??-Infinity,n.right?.max??-Infinity);return n;}
+ rotateLeft(a){const b=a.right;a.right=b.left;b.left=a;this.refresh(a);return this.refresh(b);}
+ rotateRight(a){const b=a.left;a.left=b.right;b.right=a;this.refresh(a);return this.refresh(b);}
+ insert(root,node){if(!root)return node;if(node.lo<root.lo||node.lo===root.lo&&node.order<root.order)root.left=this.insert(root.left,node);else root.right=this.insert(root.right,node);this.refresh(root);const b=this.height(root.left)-this.height(root.right);if(b>1){if(this.height(root.left.left)<this.height(root.left.right))root.left=this.rotateLeft(root.left);return this.rotateRight(root);}if(b< -1){if(this.height(root.right.right)<this.height(root.right.left))root.right=this.rotateRight(root.right);return this.rotateLeft(root);}return root;}
+ query(radius,extent,gap){const pad=(1+Math.abs(radius)+extent+gap)*1e-12+1e-7,lo=.98*radius-extent-gap-pad,hi=1.02*radius+extent+gap+pad,result=[];const visit=n=>{if(!n||n.max<lo)return;if(n.left?.max>=lo)visit(n.left);if(n.lo<=hi&&n.hi>=lo)result.push(n.value);if(n.lo<=hi)visit(n.right);};visit(this.root);return result;}
+}
+
 const TOUR_SURFACE_GAP = .02;
 const length=a=>Math.hypot(...a);
 const minus=(a,b)=>a.map((x,k)=>x-b[k]);
@@ -167,16 +179,17 @@ export function configureSharedTours(layout,frameOf,slotOf){
     }
     layout.subtreeMaxRadius[host]=size;
   }
+  // Resolve each node's nearest shared ancestor once; preserve node order.
+  const sharedMembers=new Map(groups.map(g=>[g.id,[]])),sharedRoots=new Map();
+  const sharedRoot=start=>{let id=start,path=[];while(layout.orbits[id]&&!layout.sharedOrbitIds.has(id)&&!sharedRoots.has(id)){path.push(id);id=layout.orbits[id].host;}const root=sharedRoots.get(id)??id;for(const child of path)sharedRoots.set(child,root);return root;};
+  layout.nodes.forEach((n,i)=>sharedMembers.get(sharedRoot(n.id))?.push(i));
   for(const group of groups){
     group.visits.sort((a,b)=>a.host.localeCompare(b.host));
     const key=group.visits.map(v=>v.host).join('|');
     let state=layout.sharedTours.get(group.id);
     if(!state||state.key!==key){state={key,index:group.visits.findIndex(v=>v.host===layout.orbits[group.id].host),angle:0,progress:0,stage:'idle',completed:[],world:null,lastStarted:0,roundVisits:0};layout.sharedTours.set(group.id,state);}
     group.tour=state;group.arc=frameOf('transfer:'+group.id).normal;
-    group.memberIndices=layout.nodes.map((n,i)=>{
-      let id=n.id;while(layout.orbits[id]&&!layout.sharedOrbitIds.has(id))id=layout.orbits[id].host;
-      return id===group.id?i:-1;
-    }).filter(i=>i>=0);
+    group.memberIndices=sharedMembers.get(group.id);
   }
   for(const id of layout.sharedTours.keys())if(!layout.sharedOrbitIds.has(id))layout.sharedTours.delete(id);
 }
@@ -388,6 +401,7 @@ export function resolveBodyAvoidance(layout){
   for(const group of layout.sharedOrbits||[]){const tour=group.tour;if(!tour?.world||passThrough.has(group.id))continue;tour.world=[...positions[group.id]];tour.lastRenderedWorld=[...positions[group.id]];tour.worldVelocity=[...(layout.velocities[group.id]||[0,0,0])];}
   layout.bodyAvoidancePrevious=savedPrevious;layout.bodyAvoidanceStats={corrections,converged,blockedMainPairs:blocked.size};
 }
+
 
 // Geometry is inferred only from recorded relations and their shared neighbours.
 
@@ -690,7 +704,7 @@ export class AffinityLayout {
     for(const n of [...this.orbitOrder].reverse()){
       const host=nodeIndex.get(n.id),children=members.get(host)||[],shells=new Map();
       for(const id of children){const o=this.orbits[id];if(!o||o.kind==='star'||o.kind==='planet')continue;if(!shells.has(o.localShell))shells.set(o.localShell,[]);shells.get(o.localShell).push(id);}
-      const planeBounds=new Map(),knowledgePlaced=[];
+      const planeBounds=new Map(),knowledgePlaced=[],radialIndex=new RadialEnvelopeIndex();
       let previous=0,previousExtent=0,previousSize=0,previousRadiusForPlane=0,previousExtentForPlane=0;
       for(const shell of [...shells.keys()].sort((a,b)=>a-b)){
         const ids=shells.get(shell),plane=this.orbits[ids[0]].planeKey,knowledge=this.orbits[ids[0]].knowledgePlane;
@@ -710,11 +724,11 @@ export class AffinityLayout {
           // Its displacement derivatives are bounded by .08 radially and .04
           // tangentially: separation stays >= .88 of nominal, rather than
           // losing independent 2% radii per body. Primary-owned bodies have no tide.
-          const safe=r=>knowledge?knowledgePlaced.every(p=>Math.abs(r-p.radius)-.02*(r+p.radius)>=e+p.extent+SURFACE_GAP-1e-8||orbitSweepDistance(o,r,p.orbit,p.radius)*(o.planeKey===p.orbit.planeKey?(this.orbits[nodes[host].id]?.88:1):1)-(o.planeKey===p.orbit.planeKey?0:.02*(r+p.radius))>=e+p.extent+SURFACE_GAP-1e-8):placed.every(p=>{const angle=o.phase-p.phase,nominal=Math.sqrt(Math.max(0,r*r+p.radius*p.radius-2*r*p.radius*Math.cos(angle)));return nominal-.02*(r+p.radius)>=e+p.extent+SURFACE_GAP-1e-8;});
+          const safe=r=>knowledge?radialIndex.query(r,e,SURFACE_GAP).every(p=>Math.abs(r-p.radius)-.02*(r+p.radius)>=e+p.extent+SURFACE_GAP-1e-8||orbitSweepDistance(o,r,p.orbit,p.radius)*(o.planeKey===p.orbit.planeKey?(this.orbits[nodes[host].id]?.88:1):1)-(o.planeKey===p.orbit.planeKey?0:.02*(r+p.radius))>=e+p.extent+SURFACE_GAP-1e-8):placed.every(p=>{const angle=o.phase-p.phase,nominal=Math.sqrt(Math.max(0,r*r+p.radius*p.radius-2*r*p.radius*Math.cos(angle)));return nominal-.02*(r+p.radius)>=e+p.extent+SURFACE_GAP-1e-8;});
           if(!safe(radius)){let low=Math.max(radius,...placed.map(p=>p.radius)),high=low;while(!safe(high))high=high*1.25+1;for(let step=0;step<40;step++){const middle=(low+high)/2;if(safe(middle))high=middle;else low=middle;}radius=high;}
           o.radius=o.targetRadius=radius;o.uncompressedShellRadius=baselineRadius;
           placed.push({radius,phase:o.phase,extent:e,size:s});
-          if(knowledge)knowledgePlaced.push({radius,orbit:o,extent:e});
+          if(knowledge){const envelope={radius,orbit:o,extent:e};knowledgePlaced.push(envelope);radialIndex.add(envelope);}
           this.systemExtents[host]=Math.max(this.systemExtents[host],radius*1.02+e);
         }
         this.subtreeMaxRadius[host]=Math.max(this.subtreeMaxRadius[host],size);
@@ -1309,6 +1323,27 @@ export function nodeFocusRegion(options){
   return mainTagRegion({...options,nodes:[{...anchor,isMainTag:true,mainTag:anchor.id},...options.nodes.filter(n=>n.id!==anchor.id)],mainTag:anchor.id});
 }
 
+// navigation-model:begin
+// Pure navigation projection; never writes source nodes, tags, projects or evidence.
+export const NAV_PENDING_DOMAIN='pending-semantic';
+export const NAV_UNASSIGNED_PROJECT='@unassigned-project';
+export const navNormal=s=>String(s||'').normalize('NFKC').trim().toLocaleLowerCase();
+export const navMajorKey=id=>'@major:'+encodeURIComponent(id);
+export function navTrustedProjects(node){return (node.projectScopes||[]).filter(p=>!['repeated-tag-project','branch-lineage'].includes(p.basis)&&!node.projectMembershipNeedsReview);}
+export function navIndexContext(nodes,index={}){const byId=new Map(nodes.map(n=>[n.id,n])),domains=new Map((index.domains||[]).map(d=>[d.id,d])),tags=new Map();for(const row of index.assignments||[]){if(!(row.sourceProofs||[]).length||(row.sourceProofs||[]).some(p=>byId.get(p.id)?.hash!==p.hash))continue;const ids=(row.domainIds||[]).filter(id=>domains.has(id));if(ids.length)tags.set(navNormal(row.tag),{...row,domainIds:ids});}return {byId,domains,tags};}
+export function navOwnDomains(node,context){const found=new Map();if(node.classificationNeedsReview)return [];for(const tag of [...(node.mainTags||[]),...(node.classification?.tags||[]),...(node.categories||[]).map(name=>({name}))]){const row=context.tags.get(navNormal(tag.name));if(!row)continue;for(const id of row.domainIds){const d=context.domains.get(id);if(!found.has(id))found.set(id,{...d,basis:'model-semantic-label',matchedTags:[],ruleVersion:row.ruleVersion||'major-navigation-v1'});found.get(id).matchedTags.push(tag.name);}}for(const row of context.tags.values())if(row.subjectIds?.includes(node.id))for(const id of row.domainIds){if(!found.has(id))found.set(id,{...context.domains.get(id),basis:'same-analysis-semantic-inference',matchedTags:[row.tag],ruleVersion:row.ruleVersion});}return [...found.values()];}
+export function attachSemanticNavigation(nodes,index){const context=navIndexContext(nodes,index),own=new Map(nodes.map(n=>[n.id,navOwnDomains(n,context)])),projectDomains=new Map();for(const n of nodes)for(const p of navTrustedProjects(n)){if(!projectDomains.has(p.id))projectDomains.set(p.id,new Map());for(const d of own.get(n.id))projectDomains.get(p.id).set(d.id,d);}
+ return nodes.map(n=>{const projects=navTrustedProjects(n),domains=new Map(own.get(n.id).map(d=>[d.id,d]));for(const p of projects)for(const d of projectDomains.get(p.id)?.values()||[])if(!domains.has(d.id))domains.set(d.id,{...d,basis:'shared-project-reference',viaProjectId:p.id});if(!domains.size)domains.set(NAV_PENDING_DOMAIN,{id:NAV_PENDING_DOMAIN,name:'待语义归纳',definition:'尚无当前版本的模型语义大标签依据；原细标签和正文保留。',basis:'pending'});return {...n,navigationOwnDomains:own.get(n.id),navigationDomains:[...domains.values()],navigationProjects:projects,navigationRuleVersion:index.ruleVersion||'major-navigation-v1'};});
+}
+export function buildSemanticNavigation(nodes,index,kind){const projected=nodes.every(n=>Array.isArray(n.navigationDomains))?nodes:attachSemanticNavigation(nodes,index||{version:1,domains:[],assignments:[]}),visible=projected.filter(n=>n.kind===kind&&!n.mergedInto),domains=new Map(),projects=new Map();for(const n of visible){for(const p of n.navigationProjects||[]){if(!projects.has(p.id))projects.set(p.id,{id:p.id,name:p.name,nodes:[],domainIds:new Set()});const g=projects.get(p.id);g.nodes.push(n);for(const d of n.navigationDomains)g.domainIds.add(d.id);}for(const d of n.navigationDomains){if(!domains.has(d.id))domains.set(d.id,{...d,nodes:[],projectIds:new Set(),unassigned:[]});const g=domains.get(d.id);g.nodes.push(n);if(n.navigationProjects?.length)for(const p of n.navigationProjects)g.projectIds.add(p.id);else g.unassigned.push(n);}}
+ return {kind,nodes:visible,domains:[...domains.values()].map(d=>({...d,projectIds:[...d.projectIds]})).sort((a,b)=>a.id===NAV_PENDING_DOMAIN?1:b.id===NAV_PENDING_DOMAIN?-1:a.name.localeCompare(b.name)),projects:[...projects.values()].map(p=>({...p,domainIds:[...p.domainIds]})),indexRevision:index?.revision||0};
+}
+export function navContents(tree,{domainId,projectId,query='',topic=null,page=0,pageSize=40}={}){let nodes;if(projectId&&projectId!==NAV_UNASSIGNED_PROJECT)nodes=tree.projects.find(p=>p.id===projectId)?.nodes||[];else{nodes=tree.domains.find(d=>d.id===domainId)?.nodes||tree.nodes;if(projectId===NAV_UNASSIGNED_PROJECT)nodes=nodes.filter(n=>!n.navigationProjects?.length);}const q=navNormal(query);if(q)nodes=nodes.filter(n=>navNormal([n.title,n.classification?.summary,...(n.categories||[])].join(' ')).includes(q));const topics=new Map();for(const n of nodes)for(const tag of n.categories||[])topics.set(tag,(topics.get(tag)||0)+1);if(topic)nodes=nodes.filter(n=>(n.categories||[]).includes(topic));const pages=Math.max(1,Math.ceil(nodes.length/pageSize)),safePage=Math.min(Math.max(0,page),pages-1);return {nodes:nodes.slice(safePage*pageSize,(safePage+1)*pageSize),total:nodes.length,page:safePage,pages,topics:[...topics].sort((a,b)=>b[1]-a[1]).slice(0,12)};}
+
+// One identity lookup per endpoint; retain independent relations and source evidence.
+export function projectLayerRelations(nodes,relations,kind){const byId=new Map(nodes.map(n=>[n.id,n])),visible=nodes.filter(n=>n.kind===kind&&!n.mergedInto),ids=new Set(visible.map(n=>n.id)),edges=[];for(const relation of relations){const from=byId.get(relation.from)?.mergedInto||relation.from,to=byId.get(relation.to)?.mergedInto||relation.to;if(from!==to&&ids.has(from)&&ids.has(to))edges.push({...relation,from,to});}return {nodes:visible,edges};}
+
+// navigation-model:end
 const ai=/\b(?:ai|artificial intelligence|machine learning|deep learning|llm|gpt|claude|gemini|openai|codex|lora|dino|sdxl|qwen|ollama|agentic)\b|人工智能|机器学习|深度学习|大模型|语言模型|智能体|模型训练|模型推理|提示词|扩散模型/i;
 export function tagHierarchy(name){
  const text=String(name||'').trim();if(!text)return null;
@@ -1327,11 +1362,12 @@ export const UNASSIGNED_PROJECT='@unassigned-project';
 export const projectKey=id=>'@project:'+encodeURIComponent(id);
 export function explicitProjects(node){
  const out=new Map(),add=(p,basis)=>{if(typeof p==='string')p={name:p};if(!p||typeof p!=='object')return;const name=String(p.name||p.label||p.projectName||'').trim(),rawId=p.id||p.projectId;if(!name&&!rawId)return;const id=String(rawId||'named:'+normal(name));out.set(id,{id,name:name||id,basis:p.basis||basis,sourceIds:[node.id]});};
- for(const p of node.autoProjectMemberships||[])add(p,'repeated-tag-project');
+ if(node.projectMembershipNeedsReview||node.classification?.projectMembershipAnalysis?.method==='semantic-project-content'&&node.classification.projectMembershipAnalysis.sourceHash!==node.hash)return [];
  const members=node.classification?.projectMemberships;if(Array.isArray(members)){for(const p of members)add(p,'saved-project-metadata');return [...out.values()];}
  for(const p of Array.isArray(node.projects)?node.projects:typeof node.projects==='string'?[node.projects]:[])add(p,'explicit-project');
  if(node.projectId)add({id:node.projectId,name:node.projectName||node.project?.name},'explicit-project');
  for(const tag of [...(node.mainTags||[]),...(node.classification?.tags||[])]){const match=String(tag.name||'').match(/^(?:项目|Project)\s*[:：/·]\s*(.+)$/i);if(match)add({name:match[1]},'explicit-project-classification');}
+ if(!out.size)for(const p of node.autoProjectMemberships||[])add(p,'repeated-tag-project');
  return [...out.values()];
 }
 export function branchRoot(title){let name=String(title||'').normalize('NFKC').trim(),branched=false;while(/^(?:分支|branch|续篇|continuation)\s*[·•:：\-]\s*/i.test(name)){name=name.replace(/^(?:分支|branch|续篇|continuation)\s*[·•:：\-]\s*/i,'');branched=true;}const suffix=name.match(/\s*[·•:：\-]\s*(?:续篇|续集|continued|continuation)(?:\s*\d+)?\s*$/i);if(suffix){name=name.slice(0,suffix.index).trim();branched=true;}return {name,branched};}
@@ -1348,6 +1384,7 @@ export function projectScopesFor(nodes,groups){
  const get=(id,seen=new Set())=>{if(direct.has(id))return direct.get(id);if(memo.has(id))return memo.get(id);if(seen.has(id))return [];seen.add(id);const result=new Map();for(const s of [...(byId.get(id)?.sources||[]),...(byId.get(id)?.projectSourceIds||[]).map(id=>({id})),...(byId.get(id)?.importProvenance||[]).filter(p=>p.previousVersionNodeId).map(p=>({id:p.previousVersionNodeId}))])for(const scope of get(s.id,new Set(seen))){const old=result.get(scope.id);result.set(scope.id,{...scope,sourceIds:[...new Set([...(old?.sourceIds||[]),...(scope.sourceIds||[]),s.id])]});}const value=[...result.values()];memo.set(id,value);return value;};return new Map(nodes.map(n=>[n.id,get(n.id)]));
 }
 export function nodeTagHierarchy(node){
+ if(Array.isArray(node.navigationDomains))return node.navigationDomains.map(d=>({primary:d.name,key:navMajorKey(d.id),domainId:d.id,kind:'major-domain',secondary:(node.navigationProjects||[]).map(p=>p.name),basis:d.basis}));
  const themes=themeHierarchy(node);if(!node.projectOrganization&&!node.knowledgeProjectOrganization)return themes;
  const topics=[...new Set([...themes.flatMap(t=>t.secondary.length?t.secondary.map(s=>t.primary+' / '+s):[t.primary]),...(node.categories||[])])].filter(name=>name!=='项目'&&!/^(?:项目|Project)\s*[:：/·]/i.test(name)).sort();
  const scopes=node.projectScopes||[];return scopes.length?scopes.map(p=>({primary:p.name,key:projectKey(p.id),projectId:p.id,kind:'project',secondary:topics,basis:p.basis,sourceIds:p.sourceIds||[]})):[{primary:'待归属',key:UNASSIGNED_PROJECT,kind:'unassigned',secondary:topics}];
@@ -1373,9 +1410,10 @@ export function recurringTagProjects(nodes){
 export function organizeProjectKnowledge(state){
  const recurring=recurringTagProjects(state.nodes),membership=new Map();
  for(const g of recurring.filter(g=>g.status==='promoted'))for(const id of new Set([...g.nodeIds,...g.sourceIds])){if(!membership.has(id))membership.set(id,[]);membership.get(id).push({id:g.id,name:g.name,basis:g.basis,sourceCount:g.sourceCount});}
- const nodes=state.nodes.map(n=>({...n,autoProjectMemberships:Array.isArray(n.classification?.projectMemberships)&&!n.classification.projectMemberships.length?[]:membership.get(n.id)||[]}));
+ const byId=new Map(state.nodes.map(n=>[n.id,n]));
+ const nodes=state.nodes.map(n=>({...n,projectMembershipNeedsReview:n.classification?.projectMembershipAnalysis?.method==='semantic-project-content'&&(n.classification.projectMembershipAnalysis.sourceHash!==n.hash||(n.classification.projectMemberships||[]).some(p=>(p.grounds||[]).some(g=>[g.subject,g.project].some(e=>!e?.nodeId||byId.get(e.nodeId)?.hash!==e.sourceHash)))),autoProjectMemberships:Array.isArray(n.classification?.projectMemberships)?[]:membership.get(n.id)||[]}));
  const groups=projectGroups(nodes,state.jobs||[]),scopes=projectScopesFor(nodes,groups);
- return {...state,recurringProjects:recurring,projectGroups:groups,nodes:nodes.map(n=>({...n,projectScopes:scopes.get(n.id)||[],projectOrganization:true,...(n.kind==='knowledge'?{knowledgeProjectOrganization:true}:{})}))};
+ const scoped=nodes.map(n=>({...n,projectScopes:scopes.get(n.id)||[],projectOrganization:true,...(n.kind==='knowledge'?{knowledgeProjectOrganization:true}:{})}));return {...state,recurringProjects:recurring,projectGroups:groups,nodes:state.semanticNavigation?.version===1?attachSemanticNavigation(scoped,state.semanticNavigation):scoped};
 }
 export function knowledgeProjectBuckets(nodes){const buckets=new Map();for(const n of nodes.filter(n=>n.kind==='knowledge'&&!n.mergedInto))for(const h of nodeTagHierarchy({...n,knowledgeProjectOrganization:true})){const key=h.key||h.primary;if(!buckets.has(key))buckets.set(key,{key,name:h.primary,projectId:h.projectId||null,kind:h.kind,nodes:[],topics:new Set()});const b=buckets.get(key);b.nodes.push(n);for(const t of h.secondary)b.topics.add(t);}return [...buckets.values()].map(b=>({...b,count:b.nodes.length,topics:[...b.topics].sort()})).sort((a,b)=>a.kind==='unassigned'?1:b.kind==='unassigned'?-1:a.name.localeCompare(b.name));}
 export function knowledgeTopicNames(node){return [...new Set([...themeHierarchy(node).flatMap(t=>[t.primary,...t.secondary]),...(node.categories||[])])].filter(Boolean);}
@@ -1410,7 +1448,7 @@ export const networkActivityHeat=vaultActivityHeat;
 
 
 export function mainTagNames(node){return nodeTagHierarchy(node).map(tag=>tag.key||tag.primary);}
-export function matchesMainTag(node,name){if(!name)return true;const [primary,secondary]=name.split('::');return node.isMainTag?node.mainTag===primary:nodeTagHierarchy(node).some(tag=>(tag.key||tag.primary)===primary&&(!secondary||tag.secondary.includes(secondary)));}
+export function matchesMainTag(node,name){if(!name)return true;if(name.startsWith('@project:')&&(node.isProjectTag||Array.isArray(node.navigationProjects)))return node.isProjectTag?node.mainTag===name:(node.navigationProjects||[]).some(p=>'@project:'+encodeURIComponent(p.id)===name);if(node.isProjectTag&&node.domainKeys?.includes(name.split('::')[0]))return true;const [primary,secondary]=name.split('::');return node.isMainTag?node.mainTag===primary:nodeTagHierarchy(node).some(tag=>(tag.key||tag.primary)===primary&&(!secondary||tag.secondary.includes(secondary)));}
 export function effectiveDegrees(edges){
   const seen=new Set(),degrees={};
   for(const edge of edges){
@@ -1423,6 +1461,7 @@ export function effectiveDegrees(edges){
 }
 export function displayedRadius(node,settings,degree=0){return settings.baseRadius*nodeRadiusFactor(node.isMainTag,node.isMainTag?(node.domainConnectionCount??degree):degree,settings.growth??.01);}
 export function buildMainTagGraph(nodes,edges,positions={},spacing=30){
+  if(nodes.length&&nodes.every(n=>Array.isArray(n.navigationDomains)))return buildNavigationGraph(nodes,edges,positions,spacing);
   const names=[...new Set(nodes.flatMap(mainTagNames))].sort();
   const seeds={...positions},anchors=[],cores=[];
   const centered=nodes.length>0&&nodes.every(n=>positions[n.id]?.length===3&&positions[n.id].every(v=>v===0));
@@ -1454,11 +1493,13 @@ export function mainTagHeat(count,steps=MAIN_TAG_HEAT_STEPS){
   return {color:rank.color,name:tr(rank.name),label:tr('归属连接')+' '+count,reason:tr('按归属节点去重计数；颜色不代表技能程度。')};
 }
 
+function buildNavigationGraph(nodes,edges,positions,spacing){const cores=new Map(),links=new Map(),seeds={...positions},kind=nodes[0]?.kind;const core=(id,title,key,extra={})=>{if(!cores.has(id)){let h=0;for(const c of id)h=Math.imul(h^c.charCodeAt(0),16777619);const a=(h>>>0)/4294967296*Math.PI*2;cores.set(id,{id,title,kind,isMainTag:true,mainTag:key,mainTags:[],...extra});seeds[id]||=[Math.cos(a)*spacing*7,Math.sin(a*2)*spacing*3,Math.sin(a)*spacing*7];}};const edge=(from,to,key,reason)=>links.set(from+'>'+to,{id:'@anchor:'+from+':'+to,from,to,type:'@semantic',strength:1,semanticAnchor:true,membershipLink:true,mainTag:key,summary:reason,reason,sources:[]});for(const n of nodes){for(const d of n.navigationDomains){const key='@major:'+encodeURIComponent(d.id),id='@major:'+kind+':'+d.id;core(id,d.name,key);if(n.navigationProjects?.length){for(const p of n.navigationProjects){const pid='@project:'+kind+':'+p.id;core(pid,p.name,'@project:'+encodeURIComponent(p.id),{isProjectTag:true,projectId:p.id,domainKeys:[]});const c=cores.get(pid);if(!c.domainKeys.includes(key))c.domainKeys.push(key);edge(id,pid,key,'语义大类下的稳定项目引用');edge(pid,n.id,key,'同一项目内容；项目实体不复制');}}else edge(id,n.id,key,d.basis==='pending'?'待语义归纳；保留原细标签':'无项目内容直接保留在大类中');}}const all=[...edges,...links.values()],degrees=effectiveDegrees(all);for(const c of cores.values()){c.domainConnectionCount=degrees[c.id]||0;c.heat=mainTagHeat(c.domainConnectionCount);}return {nodes:[...cores.values(),...nodes],edges:all,positions:seeds};}
+
 // Render-only distance-sampled histories; no writes to layout or knowledge data.
 export class MotionTrails {
  constructor({samples=8,uploadMs=1000/30,stopFadeMs=1500,sampleSpacing=1.05}={}){this.samples=samples;this.uploadMs=uploadMs;this.stopFadeMs=stopFadeMs;this.sampleSpacing=sampleSpacing;this.ids=[];this.lastUpload=-Infinity;}
  sync(nodes,radii,colorFor){
-  const same=nodes.length===this.ids.length&&nodes.every((n,i)=>n.id===this.ids[i]);
+  const same=this.positions instanceof Float32Array&&nodes.length===this.ids.length&&nodes.every((n,i)=>n.id===this.ids[i]);
   if(!same){const old=this.ids.length?{index:new Map(this.ids.map((id,i)=>[id,i])),history:this.history,times:this.times,counts:this.counts,heads:this.heads,lastPosition:this.lastPosition,lastMovement:this.lastMovement}:null;this.ids=nodes.map(n=>n.id);const n=nodes.length,s=this.samples;this.history=new Float64Array(n*s*3);this.times=new Float64Array(n*s);this.counts=new Uint8Array(n);this.heads=new Uint8Array(n);this.lastPosition=new Float64Array(n*3);this.lastMovement=new Float64Array(n);this.positions=new Float32Array(n*s*6);this.colors=new Float32Array(n*s*8);this.widths=new Float32Array(n*s);this.distances=new Float32Array(n*s*2);
    if(old)for(let i=0;i<n;i++){const j=old.index.get(this.ids[i]);if(j===undefined)continue;this.history.set(old.history.subarray(j*s*3,(j+1)*s*3),i*s*3);this.times.set(old.times.subarray(j*s,(j+1)*s),i*s);this.counts[i]=old.counts[j];this.heads[i]=old.heads[j];this.lastPosition.set(old.lastPosition.subarray(j*3,j*3+3),i*3);this.lastMovement[i]=old.lastMovement[j];}
   }
@@ -1497,7 +1538,7 @@ export class NetworkAnimationClock {
   resetFrame(now){this.last=now;}
 }
 
-import { heatText } from "/i18n.js";
+import { heatText } from "./i18n.js";
 
 
 

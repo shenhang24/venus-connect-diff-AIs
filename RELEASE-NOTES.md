@@ -1,81 +1,40 @@
-# Venus 0.7.2 — 2026-10-22 (Australia/Sydney)
+# Venus 0.8.0 — 2026-10-26 (Australia/Sydney)
 
-## 今天追加更新 / Additional changes today
+## Built-in update and continuation loop
 
-- 四个网络统一公转速度规则：同一宿主、同一层轨道中的行星角速度相同，不同轨道采用各自的速度，保持异步公转。
-- 卫星与子卫星也按各自宿主和本地轨道分层应用规则，不把整个星系锁成同一速度。
-- 移除按单个行星身份随机分配速度的规则，同轨节点不再因为速度差持续追赶；已有轨道半径、节点身份及累计公转角度保持。
-- 原有动态换轨仍平滑过渡，隐藏动画暂停机制和有限潮汐影响保持。
+Venus coordinates its enabled local work inside the application: authorized import or update → request to the configured supported analyzer/Codex runner → current processing state → preserved model return → committed result and readback → continuation from the saved boundary. Continuing an enabled job does not require a chat to keep sending reminders, a separate chat heartbeat or a second extraction queue. The selected local runner and its model access must still be available. This release does not connect an additional AI platform or activate a daily collection schedule.
 
-All four networks now assign equal angular velocity to bodies sharing a host and orbital ring. Different rings have different periods; separate hosts retain deterministic asynchronous timing. The same rule applies to satellite and nested satellite rings. Accumulated orbital angles and individual clocks remain continuous across metadata updates. Per-planet speed jitter and catch-up yielding are replaced by ring-level speeds; layout, clearance and bounded tidal perturbations remain in place. A moving ring transition can still alter apparent screen speed temporarily; equal speed refers to revolution angle relative to the host, not equal pixels travelled per second.
+Pause requests drain the current owner and model leases before reporting a complete stop. Resume keeps existing source hashes, original model provenance, results and spent correction budgets. Reset preserves material and results; rerun requires an explicit selected or full scope. Historical failures remain inspectable without permanently labelling a recovered current run as failed. Model returns are saved before a later transport/gate failure; bounded read retries do not turn an uncertain write into a blind duplicate submission.
 
-## 同日已上传内容 / Earlier today
+## Organization and rules you can update
 
-[0.7.1](UPDATE-NOTES-0.7.1.md) added recurring tags as automatic project groups at three/five independent Markdown sources, backdrop dialog dismissal and right-click back navigation. Those changes remain included.
+All four directories use the same semantic domain → stable project reference → content/subtopic route. Projects can appear under multiple domains using the same identity, without copying the underlying material. Fine labels, source links, manual membership and deliberate unassignment remain available. Broad domains are model-derived from evidenced context; titles or a repeated keyword alone do not establish project membership. Unknown and pending material remains explicit.
 
-## 验证及隐私 / Validation and privacy
+Existing labels have an explicit bounded maintenance operation. Its original return, source proof and used budget persist; failed overlapping input cannot obtain fresh attempts by changing an operation ID. A preserved return can be recovered without another model call. A failed batch can be explicitly deferred while independent work continues, but deferral is not completion. Newly analyzed material can produce navigation metadata in the same analysis return rather than a second model request.
 
-Synthetic tests cover all four network kinds, equal speeds within rings, distinct speeds between rings, nested satellites, continuous clock progress across metadata updates and retained clearances. Build and full regression results are recorded in docs/RELEASE-REVIEW.md. No private source content, classification output, logs, account configuration or credentials are included. The private backend and ongoing analysis are not restarted by this change.
+Users can edit and confirm layer templates and adjust organization through the documented controls. New installations receive generic defaults. Upgrades preserve manually confirmed template text, help, revision and active identity. Runtime help is separate from model instructions. Template changes affect subsequent corresponding layer analysis; they do not silently rewrite old content or change the whole-library classifier's separate summary/tag contract. Reorganizing derived views does not move or rewrite source Markdown.
 
----
+## Four layers, four different jobs
 
-# Venus 0.7.1 — 2026-10-22 (Australia/Sydney)
+- **Vault:** the original conversation, document or imported text, with source identity and honest missing-material markers. Logical organization helps find it; it is not a replacement summary of the original.
+- **AI knowledge:** retrievable facts, experience, judgments and evidenced relationships. Conditions, uncertainty and the source's position remain visible.
+- **AI skills:** reusable prompts built from relevant knowledge, shared settings and criteria. A prompt can describe a procedure or combine a stable character/style definition, a selected variant and this request's change. New generation rules require task, inputs, steps, output, applicability and negative conditions. Existing legacy skills are references unless their method-use status supports more; their presence does not certify proficiency or grant execution permission.
+- **Concept cloud:** complete pages for people to read project overviews and developing understanding, with a contents list, parent navigation and traceable references. User-provided information, AI inference, suggestions and confirmed conclusions remain distinct.
 
-## 今天更新了什么 / Changes today
+For a generic example, a source note can describe a release procedure; knowledge records its observed conditions; a skill packages those conditions into a release-check prompt; a concept page explains the project's overall release approach. Alternatively, a synthetic character's stable identity can be combined with the selected violet outfit and a request to add a silver clip, without mixing all outfit variants together. These are illustrations, not claims of automatic error-free composition or visual consistency.
 
-### 重复标签自动归纳项目 / Recurring tags become projects
+## Directory, reading and network repairs
 
-- 同一精确标签出现在 3 份独立来源 Markdown 中，列为项目候选；达到 5 份，自动成为项目标签，在 Vault、AI 知识点、AI 技能、概念云四个网络中聚合展示。
-- 来源计数沿引用链去重：同一原文的知识点、技能、概念与增量版本不重复增加次数。标签必须保留逐字存在于当前正文的引用和理由；过期分类与缺少依据的标签不参与。
-- 保留原始正文、稳定节点身份、跨项目关系和人工明确设置的“待归属”。这是按已保存标签形成项目分组，不代表重新生成了一份 AI 项目综述，也不表示全库人工或模型核对已经完成。
+A global navigation style had affected content breadcrumbs, pushing the directory below a large blank area. The header and content navigation now have separate layout rules, with independently scrolling drawers and readable sidebar counts. Concept pages open as complete reading pages with one title, contents anchors, parent links and collapsed raw reference excerpts; editing remains explicit.
 
-An exact normalized tag becomes a candidate at three independent source Markdown documents and an automatic project at five. All four networks use the resulting project memberships. Source lineage deduplicates derived notes and incremental versions. Evidence must include a literal current-body quote and a reason; stale classifications are excluded. Original Markdown, node identities, cross-project relationships and explicit manual unassignment remain intact. Grouping uses saved tags and does not perform extra model inference or certify library-wide review completion.
+An empty motion-trail buffer could trigger a WebGL byte-length error during initial network loading. Empty/non-empty transitions now always have initialized typed arrays. Relation projection uses an identity map, and shared-tour membership resolves each node's nearest shared ancestor once. Conservative radial indexing retains the original final geometric checks. These changes preserve approved spacing and motion rules. Large complete networks can still be CPU-bound; this is not a high-frame-rate guarantee.
 
-### 弹窗关闭与右键返回 / Dialog dismissal and right-click back
+## Retrieval, validation and privacy
 
-- 点击弹窗外的空白区域关闭当前弹窗；从弹窗内部拖到外部不会误触关闭。
-- 右键优先关闭当前弹窗，没有弹窗时返回上一页，并恢复所选内容及筛选状态。
-- 编辑框、链接及选中文本保留原生右键菜单；页面已有的未保存草稿保持机制继续生效。
-- 三维网络右键不再同时触发镜头平移，左键旋转和中键平移保持可用。
+The read-only task-context interface accepts 1–6 explicitly selected nodes and returns bounded bodies, source/version identities and method-use boundaries. The caller must include the retrieved content in its actual request. This is not automatic memory injection into every chat or a new connection to every AI platform.
 
-Backdrop clicks dismiss dialogs through their existing close controls. Right-click dismisses the top dialog or returns to the previous Venus view. Inputs, links and selected text retain native context menus. Navigation snapshots preserve selections and filters; existing inline draft retention remains active. Right-click no longer also pans the 3D camera.
+A bounded nine-call study used two technical cases under three context conditions, two navigation calls and one synthetic variant-composition call. The technical checks were 7/10 without context and 10/10 with either original text or selected saved knowledge/skill references. Items were manually selected; equal character caps were not equal tokens. This does not establish skill superiority over original text, automatic retrieval accuracy or whole-library quality. Old skills and existing libraries are not bulk rewritten by installing this release.
 
-## Validation / 验证
+Source content, classifications, private project catalogs, credentials, account-specific tunnel values, running checkpoints, operational logs, personal configuration and live-library screenshots are excluded from the public package. Deletion is exercised only with synthetic fixtures during validation. Shared-source results are protected, and stable generated identities/version tombstones prevent the same deleted output from automatic recreation; old records without stable identities have a narrower guarantee.
 
-Targeted public-checkout test and build results are recorded in docs/RELEASE-REVIEW.md. Isolated synthetic browser checks verified candidate/promotion grouping in all four networks, backdrop dismissal, right-click return and retained unsaved inline edits. These bounded checks do not claim universal browser or large-library performance acceptance. Historical unrelated regression failures remain documented under 0.7.0.
-
-## Privacy / 隐私
-
-Only reviewed application code, synthetic tests and public documentation are included. No private Vault Markdown, conversations, classifications, ASTRA results, model prompts from private runs, progress ledgers, logs, backups, credentials or account-specific Tunnel defaults are published. Public Tunnel configuration remains user-supplied. No private backend restart or library reanalysis is required by this release.
-
----
-
-# Venus 0.7.0 — 2026-10-21
-
-## Projects and full nebula views
-
-Vault, AI Knowledge, AI Skills and Concept Cloud all use explicitly evidenced projects as their primary stars and groups. Domains remain reference/filter dimensions. Cross-project membership retains one node identity; unknown membership remains Awaiting project assignment. Manual project assignment preserves original Markdown and evidence.
-
-All four networks show the complete nebula by default, including planets and nested satellites. Selecting a node focuses it; Fit all frames the full visible nebula instead of collapsing branches. Explicit filters still apply. Short labels shrink or hide with distance; showing every node does not force every label or relationship line on. Main-planet row capacities double from four; existing bounded satellite orbits remain.
-
-## Editable analysis structure
-
-Knowledge, skill and concept templates use Markdown: # defines the theme and ## defines editable analysis items. Add, rename or remove items, save a draft, then confirm the template. Separate help text is excluded from model judgment input. Confirmation alone does not reprocess the library. Explicitly select sources and one analysis layer to reanalyze with preserved evidence, prior versions and manual-edit protection.
-
-## Incremental sync and task controls
-
-The existing ribbon start/resume control now integrates Update sync / resume, with Fully pause and saved progress. The source panel shows actual capabilities, checkpoints, current work and gaps. Configured local Markdown sources are read incrementally, deduplicated and read back before checkpoints advance. Existing conversation caches and accessible local task records use the established backup workflow; no duplicate model queue is created.
-
-GPT/cloud and Dots account histories require an authorized host or signed-in browser reader. The backend cannot promise direct history access on every platform. Connection detection is separate from successful inference and saved results. Existing model configuration remains unchanged.
-
-## Deletion and connection indicators
-
-Every Vault, knowledge, skill and concept detail page has Delete beside Saved / Save. It opens the exact selected object preview, including real paths, related links and dependent-source effects. Permanent execution remains disabled until the user explicitly confirms the irreversible-deletion warning. History copies are a separate choice; external originals, backup caches and execution logs are not silently removed. Changed files, expired previews and active work block unsafe execution. Validation used synthetic temporary data only.
-
-AI ribbon entries highlight green only after a fresh real connection check reports ready. Unavailable or unchecked entries remain dim; tooltips expose status and check time. Checks refresh every minute while the page is visible, expire after 90 seconds, do not invoke inference and do not switch the analysis model. Readiness is not a guarantee that the next inference will succeed.
-
-## Validation and limits
-
-The public build and 33 targeted template, sync, deletion, project, visibility, task-control, provider and locale checks passed. Isolated browser checks showed all nodes in every network (7/7, 11/11, 8/8 and 10/10), exact single-object deletion previews on all four detail pages, and actual GPT readiness with other unavailable entries unhighlighted. These are small synthetic workloads, not a new large-library performance claim. Existing historical regression failures are reported separately in the release review.
-
-No private conversations, library Markdown, credentials, runtime configuration or local backup evidence are included. Earlier 0.6.0 screenshots remain historical captures and do not document the new full-nebula behavior. The implementation supersedes their selective-branch UI descriptions.
+See [release review](docs/RELEASE-REVIEW.md), [four-layer workflow](docs/FOUR-LAYERS.md), [privacy](docs/PRIVACY.md) and the existing [synthetic screenshot gallery](docs/SCREENSHOTS-0.6.0.md). The screenshot gallery is historical and does not demonstrate every feature or large-library performance in this version.

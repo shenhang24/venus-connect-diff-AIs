@@ -1,3 +1,4 @@
+import {RadialEnvelopeIndex} from './radial-envelope-index.js';
 // Geometry is inferred only from recorded relations and their shared neighbours.
 import {configureSharedTours,advanceSharedTours} from './shared-tours.js';
 import {resolveBodyAvoidance} from './body-avoidance.js';
@@ -299,7 +300,7 @@ export class AffinityLayout {
     for(const n of [...this.orbitOrder].reverse()){
       const host=nodeIndex.get(n.id),children=members.get(host)||[],shells=new Map();
       for(const id of children){const o=this.orbits[id];if(!o||o.kind==='star'||o.kind==='planet')continue;if(!shells.has(o.localShell))shells.set(o.localShell,[]);shells.get(o.localShell).push(id);}
-      const planeBounds=new Map(),knowledgePlaced=[];
+      const planeBounds=new Map(),knowledgePlaced=[],radialIndex=new RadialEnvelopeIndex();
       let previous=0,previousExtent=0,previousSize=0,previousRadiusForPlane=0,previousExtentForPlane=0;
       for(const shell of [...shells.keys()].sort((a,b)=>a-b)){
         const ids=shells.get(shell),plane=this.orbits[ids[0]].planeKey,knowledge=this.orbits[ids[0]].knowledgePlane;
@@ -319,11 +320,11 @@ export class AffinityLayout {
           // Its displacement derivatives are bounded by .08 radially and .04
           // tangentially: separation stays >= .88 of nominal, rather than
           // losing independent 2% radii per body. Primary-owned bodies have no tide.
-          const safe=r=>knowledge?knowledgePlaced.every(p=>Math.abs(r-p.radius)-.02*(r+p.radius)>=e+p.extent+SURFACE_GAP-1e-8||orbitSweepDistance(o,r,p.orbit,p.radius)*(o.planeKey===p.orbit.planeKey?(this.orbits[nodes[host].id]?.88:1):1)-(o.planeKey===p.orbit.planeKey?0:.02*(r+p.radius))>=e+p.extent+SURFACE_GAP-1e-8):placed.every(p=>{const angle=o.phase-p.phase,nominal=Math.sqrt(Math.max(0,r*r+p.radius*p.radius-2*r*p.radius*Math.cos(angle)));return nominal-.02*(r+p.radius)>=e+p.extent+SURFACE_GAP-1e-8;});
+          const safe=r=>knowledge?radialIndex.query(r,e,SURFACE_GAP).every(p=>Math.abs(r-p.radius)-.02*(r+p.radius)>=e+p.extent+SURFACE_GAP-1e-8||orbitSweepDistance(o,r,p.orbit,p.radius)*(o.planeKey===p.orbit.planeKey?(this.orbits[nodes[host].id]?.88:1):1)-(o.planeKey===p.orbit.planeKey?0:.02*(r+p.radius))>=e+p.extent+SURFACE_GAP-1e-8):placed.every(p=>{const angle=o.phase-p.phase,nominal=Math.sqrt(Math.max(0,r*r+p.radius*p.radius-2*r*p.radius*Math.cos(angle)));return nominal-.02*(r+p.radius)>=e+p.extent+SURFACE_GAP-1e-8;});
           if(!safe(radius)){let low=Math.max(radius,...placed.map(p=>p.radius)),high=low;while(!safe(high))high=high*1.25+1;for(let step=0;step<40;step++){const middle=(low+high)/2;if(safe(middle))high=middle;else low=middle;}radius=high;}
           o.radius=o.targetRadius=radius;o.uncompressedShellRadius=baselineRadius;
           placed.push({radius,phase:o.phase,extent:e,size:s});
-          if(knowledge)knowledgePlaced.push({radius,orbit:o,extent:e});
+          if(knowledge){const envelope={radius,orbit:o,extent:e};knowledgePlaced.push(envelope);radialIndex.add(envelope);}
           this.systemExtents[host]=Math.max(this.systemExtents[host],radius*1.02+e);
         }
         this.subtreeMaxRadius[host]=Math.max(this.subtreeMaxRadius[host],size);

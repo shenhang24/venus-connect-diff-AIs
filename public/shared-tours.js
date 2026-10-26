@@ -122,16 +122,17 @@ export function configureSharedTours(layout,frameOf,slotOf){
     }
     layout.subtreeMaxRadius[host]=size;
   }
+  // Resolve each node's nearest shared ancestor once; preserve node order.
+  const sharedMembers=new Map(groups.map(g=>[g.id,[]])),sharedRoots=new Map();
+  const sharedRoot=start=>{let id=start,path=[];while(layout.orbits[id]&&!layout.sharedOrbitIds.has(id)&&!sharedRoots.has(id)){path.push(id);id=layout.orbits[id].host;}const root=sharedRoots.get(id)??id;for(const child of path)sharedRoots.set(child,root);return root;};
+  layout.nodes.forEach((n,i)=>sharedMembers.get(sharedRoot(n.id))?.push(i));
   for(const group of groups){
     group.visits.sort((a,b)=>a.host.localeCompare(b.host));
     const key=group.visits.map(v=>v.host).join('|');
     let state=layout.sharedTours.get(group.id);
     if(!state||state.key!==key){state={key,index:group.visits.findIndex(v=>v.host===layout.orbits[group.id].host),angle:0,progress:0,stage:'idle',completed:[],world:null,lastStarted:0,roundVisits:0};layout.sharedTours.set(group.id,state);}
     group.tour=state;group.arc=frameOf('transfer:'+group.id).normal;
-    group.memberIndices=layout.nodes.map((n,i)=>{
-      let id=n.id;while(layout.orbits[id]&&!layout.sharedOrbitIds.has(id))id=layout.orbits[id].host;
-      return id===group.id?i:-1;
-    }).filter(i=>i>=0);
+    group.memberIndices=sharedMembers.get(group.id);
   }
   for(const id of layout.sharedTours.keys())if(!layout.sharedOrbitIds.has(id))layout.sharedTours.delete(id);
 }

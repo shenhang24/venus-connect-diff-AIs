@@ -92,3 +92,14 @@ test('task endpoints use the existing executor, enforce same-origin writes and r
     }finally{app.emit('close');}
   }
 });
+
+
+test('live classification owner is visible without counting its own dispatch as a competing analyzer',()=>{
+ const analyzer={state:{enabled:false,tasksPaused:false},active:new Set(),configure(){throw Error('must not start old dispatcher');}};
+ let live=true;const tasks=new TaskControl({analyzer,classificationWorker:()=>live});
+ assert.equal(tasks.status().phase,'enabled');assert.equal(tasks.status().classificationActive,true);
+ assert.equal(tasks.status().externalActive,false);assert.equal(tasks.status().canStart,false);
+ assert.equal(tasks.control({action:'start'}).unchanged,true);
+ analyzer.state.tasksPaused=true;assert.equal(tasks.status().phase,'pausing');assert.equal(tasks.status().externalControlRequired,true);
+ live=false;assert.equal(tasks.status().phase,'paused');
+});

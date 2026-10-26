@@ -4,6 +4,7 @@ const specs=[['venus_search','search','按需检索 Venus 已保存资料、知�
 specs[0][3].mainTag=string;specs[0][3].project=string;specs[0][3].source=string;specs[0][3].date=string;
 specs.push(['venus_source_fragment','source-fragment','按已有来源关联读取原文片段，保留定位与版本。',{id:string,sourceId:string,offset:integer,length:{type:'integer',minimum:1,maximum:12000}},['id','sourceId']]);
 specs.push(['venus_read_handoff','handoff','读取指定来源的原文检查点和续接游标；不表示平台结束事件已接通。',{originId:string},['originId']]);
+specs.push(['venus_task_context','task-context','为当前任务读取明确选中的知识与完整Prompt技能，保留来源及适用边界；不会自动注入其他聊天。',{ids:{type:'string',description:'1–6个节点ID，以逗号分隔'},budget:{type:'integer',minimum:1000,maximum:16000}},['ids']]);
 const allowAuxiliaryTags=process.env.VENUS_AUXILIARY_TAGS==='1';
 if(allowAuxiliaryTags){const items={type:'array',maxItems:16,items:{type:'object',properties:{name:string,quote:string,reason:string},required:['name','quote'],additionalProperties:false}};specs.push(['venus_set_search_auxiliary','aux-tags','仅纠正辅助检索标签/别名/项目索引；需要版本和原文定位，不改正文或主分类。',{id:string,expectedHash:string,expectedVersion:integer,tags:items,aliases:items,projects:items},['id','expectedHash','expectedVersion']]);}
 const client=createReadonlyClient({allowAuxiliaryTags});

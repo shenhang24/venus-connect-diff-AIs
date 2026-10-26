@@ -13,7 +13,7 @@ test('exterior channel completes a full revolution and has continuous position a
 test('actual exterior state machine completes one lap before docking without phase reset',()=>{
  const group={id:'shared',index:2,memberIndices:[2],visits:[{host:'a',radius:20,phase:0,frame},{host:'b',radius:20,phase:0,frame}],tour:{stage:'transfer',index:0,angle:9,progress:0,completed:[],roundVisits:1},arc:frame.normal};
  const l={nodes:[{id:'a'},{id:'b'},{id:'shared'}],nodeIndices:new Map([['a',0],['b',1],['shared',2]]),coreId:'a',center:[0,0,0],sharedOrbits:[group],positions:{a:[0,0,0],b:[0,0,50],shared:[20,0,0]},velocities:{a:[0,0,0],b:[0,0,0],shared:[0,0,.24]},orbits:{shared:{host:'a'}},collisionRadii:[2,2,1],systemExtents:[25,25,1],subtreeMaxRadius:[2,2,1],tourWorldBound:500,orbitalClearance:()=>11};
- let lap=0,elapsed=0;for(let i=0;i<2500&&group.tour.stage==='transfer';i++){advanceSharedTours(l);const r=group.tour.exterior;if(r){elapsed=r.elapsed;lap=Math.max(lap,Math.min(r.lapDuration,elapsed-r.duration));}}
+ let lap=0,elapsed=0;for(let i=0;i<2500&&group.tour.stage==='transfer';i++){advanceSharedTours(l,1);const r=group.tour.exterior;if(r){elapsed=r.elapsed;lap=Math.max(lap,Math.min(r.lapDuration,elapsed-r.duration));}}
  assert.equal(group.tour.stage,'orbit');assert.equal(group.tour.index,1);assert.equal(lap,600);assert.ok(group.tour.angle>9);assert.ok(l.positions.shared.every(Number.isFinite));
 });
 for(const kind of ['vault','knowledge','skill'])test(kind+' exterior animation leaves node identity, relations, local R and envelopes unchanged',()=>{

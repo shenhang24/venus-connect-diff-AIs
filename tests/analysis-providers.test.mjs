@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
 import {createAnalysisProvider,providerConfig,saveProviderConfig,describeProvider,budgetPayload,registerAnalysisAdapter} from '../src/analysis-providers.mjs';
-const result=()=>({summary:'summary',concepts:[],unresolvedQuestions:[],mainTags:[],mainTagUpdates:[],newRelationTypes:[],tags:[],knowledge:[],relations:[],skills:[],vaultRelations:[],issues:[]});
+const result=()=>({semanticNavigation:{domains:[],mappings:[]},summary:'summary',concepts:[],unresolvedQuestions:[],mainTags:[],mainTagUpdates:[],newRelationTypes:[],tags:[],knowledge:[],relations:[],skills:[],vaultRelations:[],issues:[]});
 const payload={source:{id:'s',text:'原文逐字保留'},existingCandidates:[{id:'k',excerpt:'candidate text'}],mainTagCandidates:[]};
 function directory(t){const meta=fs.mkdtempSync(path.join(os.tmpdir(),'venus-provider-'));t.after(()=>fs.rmSync(meta,{recursive:true,force:true}));return meta;}
 for(const provider of ['http','gemini','local'])test(provider+' adapter sends the common contract and parses a stub without model/account access',async t=>{

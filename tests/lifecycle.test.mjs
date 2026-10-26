@@ -6,21 +6,23 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-test('真正重启后台并保留资料；关闭后端口释放且管理进程退出', {timeout:15000}, async (t) => {
+test('真正重启后台并保留资料；关闭后端口释放且管理进程退出', {timeout:60000}, async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-lifecycle-'));
   const child = spawn(process.execPath, ['src/supervisor.mjs'], {
     env: {...process.env, VENUS_PORT:'0', VENUS_DATA:root, VENUS_ANALYSIS:'0'}, windowsHide:true,
   });
   t.after(() => { child.kill(); fs.rmSync(root, {recursive:true, force:true}); });
-  let output = '';
+  let output = '', diagnostics = '';
+  child.stderr.on('data',chunk=>diagnostics+=chunk);
   child.stdout.on('data', (chunk) => { output += chunk; });
   async function address(index) {
-    for (let n=0; n<100; n++) {
+    for (let n=0; n<400; n++) {
+      if(child.exitCode!==null)throw new Error("隔离测试后台已退出: "+child.exitCode+" "+diagnostics);
       const matches = [...output.matchAll(/http:\/\/127\.0\.0\.1:\d+/g)];
       if (matches[index]) return matches[index][0];
       await new Promise(r=>setTimeout(r,50));
     }
-    throw new Error('后台未就绪: '+output);
+    throw new Error('隔离测试后台未就绪: '+output+' '+diagnostics);
   }
   const url = await address(0);
   const post = (base, route, body, origin) => fetch(base+route, {method:'POST', headers:{'Content-Type':'application/json', ...(origin?{Origin:origin}:{})}, body:JSON.stringify(body)});

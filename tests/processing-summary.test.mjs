@@ -14,3 +14,13 @@ test('original extraction completion cannot certify missing concept backfill as 
 test('reused results, rejected links and empty supplements do not claim a new save',()=>{const rows=['REUSE_SAVED_RESULT','CONNECTIONS_NOT_SAVED','SUPPLEMENT_SAVED'].map(action=>({kind:'saved',action,sourceId:'v',time:'2026-10-19T03:00:00Z',savedCount:0}));assert.deepEqual(collectProcessingEvidence(rows),{});});
 test('first actual supplement can advance observation without a character-offset change',()=>{const observer=new SavedProgressObserver();observer.observe('v',0,Date.parse('2026-10-19T02:00:00Z'));assert.equal(observer.observe('v',0,Date.parse('2026-10-19T02:02:00Z'),'2026-10-19T02:01:00Z').lastAdvance,Date.parse('2026-10-19T02:02:00Z'));});
 test('cancelled semantic review never masks genuine coverage extraction or restarts its exceptions',()=>{const s=processingState({conceptContentReview:review({status:'cancelled-semantic-review',exceptions:[{status:'pending-repair'}]}),analysis:{enabled:true,activeFiles:[{sourceId:'concept-only:v2',taskKind:'concept-only',offset:10,end:20,total:30}]}});assert.equal(s.mode,'running');assert.equal(s.pipeline,'覆盖回补');assert.equal(s.exceptions.length,0);assert.equal(s.notices[0].mode,'cancelled');});
+
+
+test('verified classifier observation outranks old extraction failure, uses actual save time, and expires',()=>{
+ const now=Date.parse('2026-10-26T00:00:00Z'),savedAt='2026-10-25T23:59:00Z';
+ const event={action:'CLASSIFICATION_EXECUTOR_OBSERVED',origin:'classification-monitor',time:new Date(now).toISOString(),checkpoint:{version:1,status:'running',verifiedLivePid:123,current:{id:'v-new',path:'Vault/current.md',start:16000,end:32000},lastSavedSegment:{id:'v-new',end:16000,savedAt},sourceTotal:64000,completed:15,total:15063,lastUpdatedAt:savedAt}};
+ const evidence=collectProcessingEvidence([event]);const state={analysis:{enabled:true,concepts:{failedSegments:1}},conceptContentReview:review({status:'cancelled-semantic-review'}),processingEvidence:evidence};
+ const s=processingState(state,now);assert.equal(s.mode,'running');assert.equal(s.key,'classification:observed');assert.equal(s.offset,16000);assert.equal(s.lastSavedAt,savedAt);assert.equal(s.lastUpdatedAt,savedAt);assert(s.notices.some(n=>n.mode==='cancelled'));assert(s.notices.some(n=>n.mode==='failed'));
+ assert.notEqual(processingState(state,now+300001).mode,'running');assert.notEqual(processingState({...state,taskControl:{phase:'paused'}},now).mode,'running');
+ const unverified=collectProcessingEvidence([{...event,checkpoint:{}}]);assert.equal(unverified.$classification,undefined);
+});
