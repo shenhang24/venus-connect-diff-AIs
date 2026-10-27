@@ -77,6 +77,7 @@ export class Store {
     );
   }
   scan({paths=null}={}) {
+    const previousNodes=this.nodeById;
     const partial=Array.isArray(paths)&&!!this.nodes;
     const selected=partial?new Set(paths.filter(p=>typeof p==='string').map(p=>p.replaceAll('\\','/'))):null;
     this.readStats||={fullScans:0,targetedScans:0};this.readStats[partial?'targetedScans':'fullScans']++;
@@ -174,6 +175,7 @@ export class Store {
       for (const n of nodes) this.position(n);
       this.save();
       for(const n of nodes)n.heat=this.nodeHeat.get(n.id);
+      if(this.onLibraryChange&&previousNodes)this.onLibraryChange({revision:this.state.revision,upserts:nodes.filter(n=>{const old=previousNodes.get(n.id);return !old||old.hash!==n.hash||old.classificationHash!==n.classificationHash;}),removed:[...previousNodes.keys()].filter(id=>!byId.has(id)),relations:this.relations});
       return true;
     }
     for(const n of nodes)n.heat=this.nodeHeat?.get(n.id);
@@ -279,7 +281,7 @@ export class Store {
         ? hash(fs.readFileSync(rel))
         : null,
       features:{classification:true,dynamicLayout:true,activityHeat:true,continuousMerge:true,memorySnapshot:true,incrementalAnalysisReads:true,inlineTitleEdit:true,incrementalImportMetadata:true,concepts:true,conceptAdmission:true,skillMethods:true,knowledgeDedupeThreshold:.95},
-      version:'0.8.0',
+      version:'0.3.6',
       semanticNavigation:readNavigationIndex(this.meta),
       analysis:this.analyzer?.status()||{enabled:false,running:false,total:this.nodes.filter(n=>n.kind==='vault').length},
       revision: this.state.revision,

@@ -1,5 +1,14 @@
 # Changes
 
+## 0.8.1 — 2026-10-27
+
+- Continue serial analysis from durable request receipts through verified save, preserving source versions and correction budgets.
+- Replace fixed full-state UI polling with passive task events and incremental saved-node updates; add explicit local refresh and idle-only questions.
+- Persist finite capacity cooldown, source-tail recovery and honest unresolved outcomes.
+- Local HTTP refreshes are not model prompts; no unmeasured token savings or capacity causation is claimed.
+
+[Detailed update](UPDATE-NOTES-0.8.1.md).
+
 ## 0.8.0 — 2026-10-26
 
 - Integrate the enabled local update → configured runner → truthful state → preserved return → verified save → checkpoint continuation loop, without a chat heartbeat.

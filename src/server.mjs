@@ -1,4 +1,5 @@
 import {SemanticNavigationProducer,NAVIGATION_SCHEMA,NAVIGATION_INSTRUCTIONS} from './semantic-navigation-producer.mjs';
+import {LibraryDelta} from './library-delta.mjs';
 import {createModelRunner} from './analysis-model.mjs';
 import http from "node:http";
 import {createLibraryRefresh} from "./library-refresh.mjs";
@@ -50,6 +51,10 @@ export function createApp({
   const store = new Store(root),
     clients = new Set();
   store.backgroundRefresh=true;
+  const libraryDelta=new LibraryDelta(store);
+  let manualQuestionActive=false,manualQuestionRunner=null;
+  const push=(name,data)=>{for(const client of clients)client.write('event: '+name+'\ndata: '+JSON.stringify(data)+'\n\n');};
+  store.onLibraryChange=change=>{libraryDelta.record(change);push('library-delta',{revision:change.revision});};
   const provider=createAnalysisProvider(store.meta);
   const templates=new AnalysisTemplates(store.meta);store.analysisTemplates=templates;
   const runner=templates.wrap(analysisRunner||provider.runner);
@@ -63,7 +68,7 @@ export function createApp({
   const reviewControl=new ReviewControl({project:path.resolve(store.root,'..'),meta:store.meta,journal,analysis:()=>analyzer?.status(),launcher:reviewLauncher});
   const tasks=new TaskControl({analyzer,layers,reviewControl,provider:provider.description,journal,classificationWorker:()=>classificationExecutorActive(store.root)});
   let navigation=null;
-  const execution=new ExecutionCoordinator({project,root:store.root,port,journal,sourceExists:id=>store.nodeById.has(id),busy:()=>!!navigation?.active||!!navigation?.leaseActive()||!!analyzer?.active.size||!!layers?.active.size||!!reviewControl.worker()||!!workspaceSync.running||!!workspaceSync.starting||!!workspaceSync.child,...executionOptions});tasks.execution=execution;if(execution.state.enabled&&analyzer)analyzer.configure({enabled:false});
+  const execution=new ExecutionCoordinator({project,root:store.root,port,journal,sourceExists:id=>store.nodeById.has(id),busy:()=>manualQuestionActive||!!navigation?.active||!!navigation?.leaseActive()||!!analyzer?.active.size||!!layers?.active.size||!!reviewControl.worker()||!!workspaceSync.running||!!workspaceSync.starting||!!workspaceSync.child,...executionOptions});tasks.execution=execution;if(execution.state.enabled&&analyzer)analyzer.configure({enabled:false});
   store.taskControl=tasks;store.executionCoordinator=execution;
   const workspaceSync=new WorkspaceSync(store,{tasks,connections,port,project,...workspaceOptions});
   const semanticProjects=new SemanticProjectMemberships(store,{model:'gpt-6.1-sol',acceptedModels:['gpt-6.1-sol','gpt-6-astra'],busy:({ownerToken}={})=>!!navigation?.active||!!navigation?.leaseActive()||!!analyzer?.state.tasksPaused||!!analyzer?.active.size||!!layers?.active.size||!!reviewControl.worker()||(classificationExecutorActive(store.root)&&!classificationExecutorOwned(store.root,ownerToken))});
@@ -106,6 +111,7 @@ export function createApp({
       if(req.method==='GET'&&url.pathname==='/api/execution/failure')return json(res,execution.inspectFailure());
       if(req.method==='GET'&&url.pathname==='/api/execution/status')return json(res,execution.status());
       if(req.method==='GET'&&url.pathname==='/api/tasks/status')return json(res,tasks.status());
+      if(req.method==='GET'&&url.pathname==='/api/library/delta')return json(res,libraryDelta.read(Number(url.searchParams.get('since'))));
       if(req.method==='GET'&&url.pathname==='/api/workspace/templates')return json(res,templates.list());
       if(req.method==='GET'&&url.pathname==='/api/workspace/sync')return json(res,workspaceSync.status());
       if(req.method==='GET'&&url.pathname==='/api/workspace/deleted-source'){const id=url.searchParams.get('id'),record=store.state.deletedSources?.[id];return json(res,{id,deleted:!!record,...(record?{bodyHash:record.bodyHash,deletedAt:record.deletedAt}:{} )});}
@@ -142,6 +148,8 @@ export function createApp({
         });
         res.write("data: " + store.state.revision + "\n\n");
         clients.add(res);
+        res.write('event: task-status\ndata: '+JSON.stringify(tasks.status())+'\n\n');
+        res.write('event: library-delta\ndata: '+JSON.stringify({revision:store.state.revision})+'\n\n');
         req.on("close", () => clients.delete(res));
         return;
       }
@@ -171,6 +179,11 @@ export function createApp({
           data = JSON.parse(Buffer.concat(chunks).toString("utf8"));
         } catch {
           return json(res, { error: "JSON 格式无效" }, 400);
+        }
+        if(url.pathname==='/api/manual-question'){
+          if(typeof data.question!=='string'||!data.question.trim()||data.question.length>12000||typeof data.operationId!=='string'||data.operationId.length>100)return json(res,{error:'Provide a question and a stable operation ID.'},400);
+          if(manualQuestionActive||execution.workerPresent())return json(res,{error:'The current analysis is active. Your question has not been submitted; retain it and try after analysis is idle.',modelInvoked:false},409);
+          manualQuestionActive=true;try{manualQuestionRunner||=createModelRunner(path.join(execution.work,'manual-question'),{durableTask:true,model:'gpt-6.1-sol',reasoningEffort:'low',usageMeta:store.meta,schema:{type:'object',additionalProperties:false,required:['answer'],properties:{answer:{type:'string'}}},instructions:'Answer only this explicitly submitted question. Do not resume, repeat or control the library analysis. No library contents are attached.'});const result=await manualQuestionRunner({purpose:'explicit-manual-question',operationId:data.operationId,question:data.question.trim()});return json(res,{...result,model:'gpt-6.1-sol',savedLocally:true});}finally{manualQuestionActive=false;}
         }
         if(url.pathname==='/api/navigation/update')return json(res,await navigation.update(data));
         if(url.pathname==='/api/navigation/defer')return json(res,navigation.defer(data));
@@ -297,6 +310,8 @@ export function createApp({
     }
   });
   const libraryRefresh=createLibraryRefresh(store,{onChange:change=>execution.noteIntake(change)});
+  const executionWork=execution.work;fs.mkdirSync(executionWork,{recursive:true});let taskPushTimer=null;
+  const taskWatcher=fs.watch(executionWork,{persistent:false},(_event,name)=>{if(!['progress.json','execution-control.json','model-lease.json'].includes(String(name)))return;clearTimeout(taskPushTimer);taskPushTimer=setTimeout(()=>{try{push('task-status',tasks.status());}catch(error){console.error('Task status push failed: '+error.message);}},200);});
   const timer = setInterval(() => {
     try {
       libraryRefresh.poll();
@@ -313,6 +328,7 @@ export function createApp({
     analyzer?.stop();
     layers?.stop();
     clearInterval(timer);
+    clearTimeout(taskPushTimer);taskWatcher.close();store.onLibraryChange=null;
     libraryRefresh.close();
     for (const c of clients) c.end();
   });

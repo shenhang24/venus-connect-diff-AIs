@@ -46,3 +46,13 @@ export function installDismissNavigation(doc,{back=()=>false}={}){
  doc.addEventListener('pointerdown',down,true);doc.addEventListener('click',click,true);doc.addEventListener('contextmenu',context,true);
  return ()=>{observer.disconnect();doc.removeEventListener('pointerdown',down,true);doc.removeEventListener('click',click,true);doc.removeEventListener('contextmenu',context,true);};
 }
+
+// Browser-only invalidation. This never controls analysis or writes library data.
+export class LibraryRefreshPolicy {
+  constructor({clock=Date.now,minInterval=15000}={}){this.clock=clock;this.minInterval=minInterval;this.loaded=false;this.generation=1;this.applied=0;this.urgent=true;this.lastRead=-Infinity;}
+  invalidate({urgent=true}={}){this.generation++;this.urgent ||= urgent;}
+  observeRevision(value){const revision=Number(value);if(!Number.isSafeInteger(revision)||revision<0)return;if(revision!==this.hint){this.hint=revision;if(!this.loaded||revision!==this.revision)this.generation++;}}
+  begin(){if(this.loaded&&(this.generation===this.applied||!this.urgent&&this.clock()-this.lastRead<this.minInterval))return null;this.urgent=false;return {generation:this.generation};}
+  commit(ticket,revision){this.loaded=true;this.revision=revision;this.applied=ticket.generation;this.lastRead=this.clock();}
+  fail(){this.urgent=true;}
+}

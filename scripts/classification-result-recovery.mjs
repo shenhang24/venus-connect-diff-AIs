@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {createHash, randomUUID} from 'node:crypto';
+import {classifyExecutionFailure} from '../src/execution-recovery.mjs';
 const canonical = value => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key => [key,item[key]])) : item);
 const digest = value => createHash('sha256').update(canonical(value)).digest('hex');
 const read = file => JSON.parse(fs.readFileSync(file,'utf8'));
@@ -39,7 +40,11 @@ export async function selectClassificationResult({work,payload,model,run,validat
    await gate();
    const correctionPayload={...payload,literalEvidenceCorrection:{attempt:1,requestHash,originalResultHash:original.resultHash,previousResult:original.result,issues},validationFeedback:'Correct only the invalid tag quote fields identified in literalEvidenceCorrection. Select an exact nonempty contiguous quote from the same supplied source text. Keep every original item, tag, tag order, id, name, reason, summary and uncertainties exactly unchanged. Do not drop or rename tags, borrow another source, normalize punctuation, or weaken literal matching. Return the same complete JSON schema. If no legitimate quote exists, leave it invalid and explain nothing outside the schema; validation will stop rather than silently delete a candidate.'};
    attempt={version:1,model,requestHash,originalResultHash:original.resultHash,issues,payload:correctionPayload,status:'attempting',startedAt:new Date().toISOString()};write(correctionFile,attempt,true);
-   try{attempt.result=await run(correctionPayload);attempt.resultHash=digest(attempt.result);attempt.status='returned';write(correctionFile,attempt);}catch(failure){attempt.status='failed';attempt.error=String(failure.message||failure);write(correctionFile,attempt);throw failure;}
+   attempt.status='execution-waiting';write(correctionFile,attempt);
+  }
+  if(attempt.status==='execution-waiting'){
+   await gate();attempt.executionAttempts||=[];const executionAttempt={at:new Date().toISOString(),status:'started'};attempt.executionAttempts.push(executionAttempt);attempt.status='execution-inflight';write(correctionFile,attempt);
+   try{attempt.result=await run(attempt.payload);attempt.resultHash=digest(attempt.result);attempt.status='returned';executionAttempt.status='returned';write(correctionFile,attempt);}catch(failure){executionAttempt.status='failed';executionAttempt.error=String(failure.message||failure);executionAttempt.executionFailure=failure.executionFailure||null;attempt.error=executionAttempt.error;const kind=classifyExecutionFailure(failure);attempt.status=kind.retryable&&failure.executionFailure?.returnedResult===false?'execution-waiting':'failed';write(correctionFile,attempt);throw failure;}
   }
   await gate();
   if(!['returned','validated'].includes(attempt.status)||!attempt.result||digest(attempt.result)!==attempt.resultHash)throw Error('CLASSIFICATION_CORRECTION_BUDGET_EXHAUSTED: original return and correction retained');

@@ -31,7 +31,7 @@ function fixture(t, options = {}) {
     await Promise.resolve();
     return {promise, settled: () => settled};
   };
-  return {child, begin, kills: () => kills};
+  return {directory, child, begin, kills: () => kills};
 }
 
 const turn = () => new Promise(resolve => setImmediate(resolve));
@@ -115,3 +115,13 @@ test('failed termination still retains ownership until a later close receipt', a
 
 test('metadata callback failure after model close retains the valid return and records the fault',async t=>{const f=fixture(t,{onWorkerState:s=>{if(s.active===false)throw Error('synthetic metadata write failure');}});const pending=await f.begin();f.child.emit('spawn');f.child.stdout.write(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:'{"preserved":true}'}})+'\n');f.child.emit('close',0);assert.deepEqual(await pending.promise,{preserved:true});});
 test('failed spawn clears a previously written starting lease',async t=>{const states=[];const f=fixture(t,{onWorkerState:s=>states.push(s)});const pending=await f.begin();f.child.emit('error',Error('synthetic spawn rejection'));await assert.rejects(pending.promise,/spawn rejection/);assert.equal(states.at(-1).active,false);});
+test('provider capacity receipt preserves terminal JSON without a trailing newline and releases only on close', async t=>{
+ const f=fixture(t,{model:'gpt-6.1-sol',reasoningEffort:'low'});const pending=await f.begin();f.child.emit('spawn');const event={type:'turn.failed',error:{message:'Selected model is at capacity. Please try a different model.'}};f.child.stdout.write(JSON.stringify(event));assert.equal(pending.settled(),false);f.child.emit('close',1);
+ await assert.rejects(pending.promise,e=>{assert.equal(e.executionFailure.kind,'capacity');assert.equal(e.executionFailure.returnedResult,false);assert.equal(e.executionFailure.model,'gpt-6.1-sol');return true;});const receipt=JSON.parse(fs.readFileSync(path.join(f.directory,'execution-failures.jsonl'),'utf8').trim());assert.match(receipt.rawErrors,/Selected model is at capacity/);assert.equal(receipt.reasoningEffort,'low');assert.equal(receipt.requestHash.length,64);
+});
+test('failure receipt storage errors reject clearly rather than hanging the caller',async t=>{
+ const f=fixture(t);fs.mkdirSync(path.join(f.directory,'execution-failures.jsonl'));const pending=await f.begin();f.child.emit('spawn');f.child.stderr.write('Selected model is at capacity.');f.child.emit('close',1);await assert.rejects(pending.promise,/LOCAL_API_WRITE_OUTCOME_UNKNOWN/);
+});
+test('durable model runner sends one fixed Markdown request and replays a returned task without spawning again',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'venus-durable-runner-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));let spawns=0,writes=0,input='';const child=new EventEmitter();child.stdout=new PassThrough();child.stderr=new PassThrough();child.stdin=new Writable({write(chunk,_enc,done){writes++;input+=chunk;done();}});child.kill=()=>true;const options={durableTask:true,model:'fixture-no-real-model',reasoningEffort:'low',timeoutMs:1000,resolveExecutable:async()=> 'fixture-executable',spawnImpl:()=>{spawns++;return child;}};const payload={purpose:'isolated-completion-test',items:[{id:'a',sourceHash:'v1',start:0,end:10,text:'synthetic'}]};const run=createModelRunner(directory,options),pending=run(payload);await turn();child.emit('spawn');await new Promise(r=>setTimeout(r,20));assert.equal(spawns,1);assert.equal(writes,1);assert.match(input,/^# Model task /);child.stdout.write(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:'{"ok":true}'}})+'\n');child.emit('close',0);assert.deepEqual(await pending,{ok:true});const restarted=createModelRunner(directory,{...options,spawnImpl:()=>assert.fail('no duplicate spawn')});assert.deepEqual(await restarted(payload),{ok:true});assert.equal(spawns,1);assert.equal(writes,1);
+});

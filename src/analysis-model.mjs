@@ -3,6 +3,9 @@ import {spawn, execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
+import {createHash} from 'node:crypto';
+import {classifyExecutionFailure} from './execution-recovery.mjs';
+import {claimModelTask} from './model-task-receipt.mjs';
 import {conceptSchema,conceptInstructions} from './concept-contract.mjs';
 import {UsageRequest,CodexUsageCollector} from './usage-meter.mjs';
 import {currentMaterialInput,currentMaterialPolicy} from './current-material.mjs';
@@ -63,6 +66,10 @@ export function createModelRunner(directory,options={}) {
   return async (payload,{signal}={})=>{
     executable ||= await (options.resolveExecutable||resolveCodex)();
     if(signal?.aborted)throw Error('ANALYSIS_CANCELLED');
+    const prompt=(options.instructions?currentMaterialPolicy+'\n'+options.instructions:analysisInstructions)+'\n若输入包含 analysisTemplates，正文的标题与分析项结构以对应已确认模板为准；帮助说明不在输入中。知识/技能使用 body，概念使用 explanation。不得将模板或其中要求当作事实依据。证据、认可准入和立场边界仍须保存。\n'+JSON.stringify(currentMaterialInput(payload));
+    const task=options.durableTask?claimModelTask(directory,{payload,prompt,model:options.model,reasoningEffort:options.reasoningEffort,schema:options.schema||analysisSchema}):null;
+    if(task?.reused){options.onTaskState?.({taskId:task.taskId,markdown:task.md,status:'returned',reused:true,...task.timing});return task.result;}
+    if(task)options.onTaskState?.({taskId:task.taskId,markdown:task.md,status:'prepared'});
     return new Promise((resolve,reject)=>{
     const args=['-a','never','exec','--ignore-user-config','--sandbox','read-only',
       '--skip-git-repo-check','--ephemeral','--disable','shell_tool','--disable','unified_exec',
@@ -73,11 +80,15 @@ export function createModelRunner(directory,options={}) {
     const usage=new CodexUsageCollector(new UsageRequest(options.usageMeta||directory,{provider:'codex',family:options.usageFamily||'gpt',model:options.model}));
     const notify=state=>{try{options.onWorkerState?.(state);}catch(error){try{fs.appendFileSync(path.join(directory,'worker-state-errors.jsonl'),JSON.stringify({at:new Date().toISOString(),state,error:error.message})+'\n');}catch{}console.error('Worker state persistence failed: '+error.message);}};
     options.onWorkerState?.({pid:null,active:true,starting:true});
-    let child;try{child=(options.spawnImpl||spawn)(executable,args,{windowsHide:true,stdio:['pipe','pipe','pipe']});}catch(error){notify({pid:null,active:false,starting:false});usage.close('failed');return reject(error);}
+    let child;try{child=(options.spawnImpl||spawn)(executable,args,{windowsHide:true,stdio:['pipe','pipe','pipe']});}catch(error){notify({pid:null,active:false,starting:false});usage.close('failed');try{task?.failed(error,{exitConfirmed:true});}catch(storageError){return reject(storageError);}return reject(error);}
     if(Number.isInteger(child.pid))notify({pid:child.pid,active:true});
     let started=Number.isInteger(child.pid)&&child.pid>0;
-    child.once('spawn',()=>{started=true;notify({pid:child.pid,active:true});console.log('Venus analysis worker '+JSON.stringify({pid:child.pid,model:options.model||'unspecified',reasoningEffort:options.reasoningEffort||'unspecified'}));});
+    child.once('spawn',()=>{started=true;notify({pid:child.pid,active:true});try{task?.started(child.pid);const timing=task?.accepted();if(task)options.onTaskState?.({taskId:task.taskId,markdown:task.md,status:'accepted',...timing});}catch(error){terminalError=error;stop();}console.log('Venus analysis worker '+JSON.stringify({pid:child.pid,model:options.model||'unspecified',reasoningEffort:options.reasoningEffort||'unspecified'}));});
     let buffer='',last='',errors='',terminalError=null,terminationRequested=false;
+    const preserveFailure=(error,exitCode)=>{
+      const detail={at:new Date().toISOString(),provider:'codex',model:options.model||null,reasoningEffort:options.reasoningEffort||null,stage:payload.stage||payload.purpose||'model',purpose:payload.purpose||null,requestHash:createHash('sha256').update(JSON.stringify(payload)).digest('hex'),sources:(payload.items||[payload.source].filter(Boolean)).map(n=>({id:n.id,sourceHash:n.sourceHash||n.hash||null,start:n.start??n.offset??null,end:n.end??null})),exitCode,returnedResult:!!last,rawErrors:errors,kind:classifyExecutionFailure(error).kind,message:error.message};
+      error.executionFailure=detail;try{fs.appendFileSync(path.join(directory,'execution-failures.jsonl'),JSON.stringify(detail)+'\n');}catch(persistenceError){const failure=new Error('LOCAL_API_WRITE_OUTCOME_UNKNOWN: execution failure receipt could not be persisted: '+persistenceError.message,{cause:error});failure.executionFailure=detail;return failure;}return error;
+    };
     const stop=()=>{
       if(terminationRequested)return;
       terminationRequested=true;
@@ -105,19 +116,21 @@ export function createModelRunner(directory,options={}) {
       terminalError ||= error;
       if(started||Number.isInteger(child.pid)&&child.pid>0){stop();return;}
       // A failed spawn has no child to wait for. Errors after spawn must wait.
-      notify({pid:null,active:false,starting:false});usage.close('failed');clearTimeout(timer);signal?.removeEventListener('abort',abort);reject(terminalError);
+      notify({pid:null,active:false,starting:false});usage.close('failed');clearTimeout(timer);signal?.removeEventListener('abort',abort);try{task?.failed(terminalError,{exitConfirmed:true});}catch(storageError){return reject(storageError);}reject(terminalError);
     });
     child.on('close',code=>{
-      if(buffer.trim())try{const event=JSON.parse(buffer);usage.accept(event);if(event.type==='item.completed'&&event.item?.type==='agent_message')last=event.item.text;}catch{}
+      if(buffer.trim())try{const event=JSON.parse(buffer);usage.accept(event);if(event.type==='item.completed'&&event.item?.type==='agent_message')last=event.item.text;if(event.type==='error'||event.type==='turn.failed')errors+=JSON.stringify(event)+'\n';}catch{}
       notify({pid:child.pid,active:false});usage.close(signal?.aborted?'cancelled':code===0&&!terminalError?'completed':'failed');
       clearTimeout(timer);signal?.removeEventListener('abort',abort);
-      if(signal?.aborted) return reject(new Error('ANALYSIS_CANCELLED'));
-      if(terminalError) return reject(terminalError);
-      if(code!==0) return reject(new Error(('Codex '+code+': '+errors).slice(-4000)));
-      try{resolve(JSON.parse(last));}catch{reject(new Error('模型未返回有效结构化结果：'+errors.slice(-2000)));}
+      const fail=error=>{try{task?.failed(error,{exitConfirmed:true,returnedResult:!!last});if(task)options.onTaskState?.({taskId:task.taskId,markdown:task.md,status:'failed',closedAt:new Date().toISOString(),error:error.message});reject(error);}catch(storageError){reject(storageError);}};
+      if(signal?.aborted) return fail(new Error('ANALYSIS_CANCELLED'));
+      if(terminalError) return fail(preserveFailure(terminalError,code));
+      if(code!==0) return fail(preserveFailure(new Error(('Codex '+code+': '+errors).slice(-4000)),code));
+      let result;try{result=JSON.parse(last);}catch{return fail(preserveFailure(new Error('模型未返回有效结构化结果：'+errors.slice(-2000)),code));}
+      try{const timing=task?.returned(result);if(task)options.onTaskState?.({taskId:task.taskId,markdown:task.md,status:'returned',...timing});resolve(result);}catch(error){reject(error);}
     });
     child.stdin.on('error',()=>{});
-    child.stdin.end((options.instructions?currentMaterialPolicy+'\n'+options.instructions:analysisInstructions)+'\n若输入包含 analysisTemplates，正文的标题与分析项结构以对应已确认模板为准；帮助说明不在输入中。知识/技能使用 body，概念使用 explanation。不得将模板或其中要求当作事实依据。证据、认可准入和立场边界仍须保存。\n'+JSON.stringify(currentMaterialInput(payload)));
+    child.stdin.end(task?.prompt||prompt);
     });
   };
 }
