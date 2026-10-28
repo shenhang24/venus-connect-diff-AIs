@@ -1,5 +1,11 @@
 # Changes
 
+## 0.8.3 — 2026-10-28
+
+- Publish the fixed progress feature with a refreshed, verified public-file manifest; 0.8.2 packaging failed and is superseded.
+
+[Details and validation limits](UPDATE-NOTES-0.8.3.md).
+
 ## 0.8.2 — 2026-10-28
 
 - Keep a task progress row visible outside Focus view, with discrete saved-document counts.

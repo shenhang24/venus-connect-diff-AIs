@@ -1,4 +1,4 @@
-# Venus 0.8.2 — 2026-10-28 (Australia/Sydney)
+# Venus 0.8.3 — 2026-10-28 (Australia/Sydney)
 
 ## A fixed, truthful task progress bar
 
@@ -13,3 +13,7 @@ The original local ownership tick now pushes only lifecycle/count changes throug
 Synthetic regression tests cover discrete count changes, duplicate events, pause, confirmed exit, long waits, recovery, disconnect, final-verification gating and accessibility attributes. Existing completion-driven and idempotent-submission tests also remain in the suite. A local authorized maintenance restart retained the source and correction/retry receipts. The real runtime correctly reported an existing evidence-validation block, rather than pretending to resume or complete it. No new successful production save is claimed for this release.
 
 Browser-based visual and narrow-window inspection could not be completed because the browser connection returned a constraints error. Layout visibility is covered by structural/CSS regression tests, not a claimed real-browser screenshot or frame-rate measurement. Original material, model results, runtime checkpoints, task Markdown, logs, personal configuration and real-library screenshots are excluded from this public package.
+
+## Packaging correction
+
+The 0.8.2 tag failed packaging because its public-file manifest had not been refreshed. Version 0.8.3 retains that history and publishes the corrected reviewed manifest. No private source was included; the flagged path was an existing generic folder-picker example.

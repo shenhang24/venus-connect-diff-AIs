@@ -1,6 +1,6 @@
 {
-  "version": "0.8.1",
-  "publicBaseCommit": "36f7c0cfa67e7ca7ceba86ab5d6c05c40639eaae",
+  "version": "0.8.3",
+  "publicBaseCommit": "3719ec2ccd48e0a80b36db627685116ef29ca962",
   "privateContentScan": "Bounded allowlist and sensitive-pattern scan; not a complete security audit.",
   "excluded": [
     "data",
@@ -46,8 +46,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 8121,
-      "sha256": "77d559c8aa5c1f71ef0edcc746802f85f88dc6d39d8d29a55cfbe0e33c82d1b3"
+      "bytes": 8766,
+      "sha256": "35eb6c74673032a1592876f58189f48c1559973fbbfd859c5cc7a6ebf4650195"
     },
     {
       "path": "CODE_OF_CONDUCT.md",
@@ -77,12 +77,12 @@
     {
       "path": "README.md",
       "bytes": 18071,
-      "sha256": "1d337d507ca1d45648f3676a6e9cdb2645deaffb5cc48ddc8fedb4fd487d3e07"
+      "sha256": "1a6cdf6d2a85202f8bb521eeac8f1cfa97a403bdb1d4256b78ee18409037f245"
     },
     {
       "path": "RELEASE-NOTES.md",
-      "bytes": 2854,
-      "sha256": "078d72842b5db6aacf44c1f315e7a1b799dc483dd0be11dbd2386487ec5c586a"
+      "bytes": 2813,
+      "sha256": "18a1988dc4ab62d63e3308e879c167b876304ec2a3bb9218badb31d40f12bf36"
     },
     {
       "path": "Restart-Venus.cmd",
@@ -153,6 +153,16 @@
       "path": "UPDATE-NOTES-0.8.1.md",
       "bytes": 2854,
       "sha256": "078d72842b5db6aacf44c1f315e7a1b799dc483dd0be11dbd2386487ec5c586a"
+    },
+    {
+      "path": "UPDATE-NOTES-0.8.2.md",
+      "bytes": 2521,
+      "sha256": "3ae918fa1d736668c6607e6ad1b274122beb5930105b9dfeb1f9b97e7f94d526"
+    },
+    {
+      "path": "UPDATE-NOTES-0.8.3.md",
+      "bytes": 2813,
+      "sha256": "18a1988dc4ab62d63e3308e879c167b876304ec2a3bb9218badb31d40f12bf36"
     },
     {
       "path": "UPDATE-NOTES-2026-10-19.md",
@@ -512,12 +522,12 @@
     {
       "path": "package-lock.json",
       "bytes": 1557,
-      "sha256": "7dc730212bb94ca6e25aacdcf1749a1833e601ef264b9f40a3f077181cec932a"
+      "sha256": "036884317c7e084488b1916a98dd1be1fbe96732988d8668385851a81faed271"
     },
     {
       "path": "package.json",
       "bytes": 376,
-      "sha256": "11408c0ba095f6185892c5227d35abcab4b9615bdad2de205a96b43f286b242b"
+      "sha256": "380a422157a2ba6fd24c2b394a72ca3abe29fc12e27f8fdf8be3e9c3190ab62b"
     },
     {
       "path": "public/animation-clock.js",
@@ -526,8 +536,8 @@
     },
     {
       "path": "public/app.js",
-      "bytes": 141565,
-      "sha256": "6062b489e6470fa77f176c17903376fc23401bc12d05c1396fdd4e10dafb342c"
+      "bytes": 142180,
+      "sha256": "06ec76f7418b72fa731ee7a22a58aaecbba6fd511a2ff7e03f41c7129c40eda9"
     },
     {
       "path": "public/body-avoidance.js",
@@ -556,8 +566,8 @@
     },
     {
       "path": "public/index.html",
-      "bytes": 9777,
-      "sha256": "17ce32f754bfb949c182a42a63ac8d4b619cd871b21722c9b4655097f54e0a31"
+      "bytes": 10227,
+      "sha256": "752ea45d09f4f00b4d221aa14fd18d00b7c9239dafe6dc6f67efa7a08f3fe6a2"
     },
     {
       "path": "public/knowledge-view.js",
@@ -611,8 +621,8 @@
     },
     {
       "path": "public/style.css",
-      "bytes": 51139,
-      "sha256": "153fe59a7336202c52843da5b28635b2f8c085ba927fb5af996aac440fcdb8f9"
+      "bytes": 52647,
+      "sha256": "58bd43d9dce9d648c2e66c4b2f8e75db3f7df561d7357584853f5eb9bfb6f2e2"
     },
     {
       "path": "public/taxonomy.js",
@@ -626,8 +636,8 @@
     },
     {
       "path": "public/workspace-controls.js",
-      "bytes": 23409,
-      "sha256": "b9fb130865fe48c33aa5ee845d299e38beb9007b5524b41ce3b11571fa99f2d1"
+      "bytes": 26497,
+      "sha256": "674d9591bc8fd0bc6c92dd4d6402b56ae8bf959b1f7174a764feca5b496f711e"
     },
     {
       "path": "scripts/backup-history.py",
@@ -881,8 +891,8 @@
     },
     {
       "path": "src/server.mjs",
-      "bytes": 29974,
-      "sha256": "6fcbd6bb7cb0f17291f134af6446e4a35f282c17a44282d6ea36d8393cc86bdf"
+      "bytes": 30436,
+      "sha256": "38f16a3d7e250ff8057fbdcab59593b7cd0c8cb572d1a4917a83d4b1ede1d769"
     },
     {
       "path": "src/skill-methods.mjs",
@@ -1118,6 +1128,11 @@
       "path": "tests/final-planet-order.test.mjs",
       "bytes": 7227,
       "sha256": "e466cc7acb06724620de446f354995577a0ce69f830525fd5ad2b02d1d2c252d"
+    },
+    {
+      "path": "tests/fixed-task-progress.test.mjs",
+      "bytes": 3800,
+      "sha256": "0a0fae554fed9d2130ac873afcdba003bce7d9be271ba56f6c91b8b6807f32c2"
     },
     {
       "path": "tests/graph-layer-projection.test.mjs",
