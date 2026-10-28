@@ -6,7 +6,7 @@ Venus is a local knowledge workspace for people whose project decisions, researc
 
 Return to an earlier decision, check the original evidence, adapt a method to a new task, or let an authorized AI tool retrieve the same saved context. The library stays on your computer; you choose the material, analyzer and connections.
 
-**Version [0.8.4](https://github.com/shenhang24/venus-connect-diff-AIs/releases/tag/v0.8.4)** · [Changes](UPDATE-NOTES-0.8.4.md) · [Detailed installation](docs/DEPLOYMENT.md) · [Integrations](docs/INTEGRATIONS.md)
+**Version [0.8.5](https://github.com/shenhang24/venus-connect-diff-AIs/releases/tag/v0.8.5)** · [Changes](UPDATE-NOTES-0.8.5.md) · [Detailed installation](docs/DEPLOYMENT.md) · [Integrations](docs/INTEGRATIONS.md)
 
 ## Start with a small source
 
@@ -207,6 +207,8 @@ Local reading and retrieval require no paid model call. Analysis needs your own 
 
 > [!WARNING]
 > Long histories and contexts can consume substantial subscription allowance or incur API charges. Choose your model and reasoning settings, start with a small sample and monitor your budget. Local models still need hardware and time. If you currently have extra Codex allowance, it can be a useful window for organizing a backlog; no universal promotion or expiry date is promised here.
+
+A full-history import can support a complete review and connections across projects. For lighter, more controlled token use, my personal recommendation is to select files for one project or a few related projects, import them in time-based batches, and expand gradually. A focused collection can make thematic nebula clusters easier to inspect; token usage varies with the material and model. This is a way to choose your input files, not a built-in project/date filter. Keep original files and safety backups as usual.
 
 Keep data and backups private. A configured cloud analyzer receives relevant analysis input; an authorized retrieval host receives requested results. The author does not need your library. Summaries and assignments can be wrong: follow sources and retain uncertainty. [Privacy and data flow](docs/PRIVACY.md) · [Network behavior](NETWORK-BEHAVIOR.md) · [Security](SECURITY.md)
 

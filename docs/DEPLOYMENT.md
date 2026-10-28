@@ -16,7 +16,7 @@ Venus — Your Personal Galaxy is a personal knowledge-base tool. It requires a 
 
 The Windows application-window launcher uses PowerShell and Microsoft Edge when available, with a browser fallback. Windows is the locally tested environment. The backend is Node.js code, but macOS/Linux installation, launch behavior and native UI have not been verified; cross-platform support is not certified.
 
-The publication copy's build and 159 Node tests passed, as did 10 optional Python tests. The available validation host reports Node.js 24.19.0 and Python 3.12.14. Those tests do not establish a fresh-machine installation test or a live Gemini/local-model integration test. The documented minimum Node.js 20 follows the locked marked dependency requirement; every supported Node release has not been tested.
+The initial publication copy historically passed its build, 159 Node tests and 10 optional Python tests. Those historical counts are not the validation totals for later releases; see the current update notes for release-specific checks. The available validation host reports Node.js 24.19.0 and Python 3.12.14. Those tests do not establish a fresh-machine installation test or a live Gemini/local-model integration test. The documented minimum Node.js 20 follows the locked marked dependency requirement; every supported Node release has not been tested.
 
 ## Runtime dependencies
 

@@ -1,5 +1,5 @@
 {
-  "version": "0.8.0",
+  "version": "0.8.5",
   "publicationLanguage": "en",
   "canonicalReadme": "README.md",
   "publicDocuments": [
@@ -20,6 +20,7 @@
     "UPDATE-NOTES-0.6.0.md",
     "UPDATE-NOTES-0.7.0.md",
     "UPDATE-NOTES-0.8.0.md",
+    "UPDATE-NOTES-0.8.5.md",
     "UPDATE-NOTES-2026-10-19.md",
     "codex-plugin/QUERY.md",
     "codex-plugin/skills/venus-analyze/SKILL.md",

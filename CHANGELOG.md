@@ -1,5 +1,14 @@
 # Changes
 
+## 0.8.5 — 2026-10-28
+
+- Fix numeric DOM timeout classification and preserve safe local API diagnostics.
+- Keep healthy in-flight model control independent of periodic HTTP status reads; reconnect local reads only at bounded work boundaries.
+- Distinguish protocol failures and uncertain saves without blind write/model replay or source quarantine.
+- Separate configured current models from historical usage and request averages.
+
+[Detailed changes and validation boundaries](UPDATE-NOTES-0.8.5.md).
+
 ## 0.8.4 — 2026-10-28
 
 - Complete real Chrome acceptance of fixed saved-task progress across desktop, narrow windows, Focus view and lifecycle/connection states.

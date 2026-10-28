@@ -263,7 +263,7 @@ Object.assign(translations,{
 '只检查本地源指纹与提取覆盖。已处理且无缺口时跳过；仅缺失、新增或变化范围进入提取，不语义复审。':'Checks local source fingerprints and extraction coverage only. Processed ranges with no gaps are skipped; only missing, new or changed ranges are extracted. No semantic re-review.',
 '用户已取消重复语义复核；原有结果和断点保留。':'User cancelled repeated semantic review; saved results and checkpoints are preserved.'
 });
-Object.assign(translations,{'最近请求均速：':'Latest request average: ','均速：暂未返回':'Average speed: not yet returned'});
+Object.assign(translations,{'最近请求均速：':'Latest request average: ','均速：暂未返回':'Average speed: not yet returned','历史最近回执均速：':'Latest historical receipt average: ','历史累计回执不代表当前运行模型；缓存是输入子集，不重复相加。':'Historical usage receipts do not identify the running model. Cached input is a subset, never counted twice.','当前配置模型：':'Currently configured model: ','配置来源，未作为提供方型号确认':'From configuration; not provider-confirmed','以下为历史用量回执，含旧模型：':'Historical usage receipts below include previous models:'});
 Object.assign(translations,{'概念模板读取失败':'Could not read the concept template','概念范围读取失败':'Could not read the concept scope','讨论假设':'Discussion hypothesis','旧记录保留，未标注用户认可；仅供参考，不覆盖当前指示。':'Legacy record retained without a user-endorsement label; reference only, never overriding current instructions.'});
 Object.assign(translations,{'开始／断点继续':'Start / resume checkpoints','完全暂停任务':'Pause all tasks','任务已启用，按保存断点继续':'Tasks enabled; continuing saved checkpoints','正在暂停，等待当前请求退出':'Pausing; waiting for active requests to exit','任务已完全暂停，已保存断点保留':'All tasks paused; saved checkpoints retained','任务未启用，已保存断点保留':'Tasks stopped; saved checkpoints retained','任务控制将在后台下次正常启动后可用':'Task controls will be available after the next normal backend start','独立执行器仍在退出，尚未完全暂停':'An external executor is still active; full pause is not confirmed','任务已全局暂停，请使用开始／断点继续':'All tasks are paused; use Start / resume checkpoints','任务仍在退出，请等待暂停完成后继续':'Tasks are still exiting; wait before resuming','任务控制操作无效':'Invalid task control action'});
 export function tr(value) {
@@ -279,3 +279,7 @@ export function heatText(heat) {
     : heat.reason;
   return {name:tr(heat.name),label:tr(heat.label),reason};
 }
+
+Object.assign(translations,{'本机状态读取暂不可用；断点保留，有限重连中。':'Local status is temporarily unknown; checkpoint retained while reconnecting within limits.'});
+
+Object.assign(translations,{'本机执行问题':'Local execution issue','查看故障与处理方案':'View fault and recovery plan','展开原文与逐字比对':'Expand source and literal evidence checks'});

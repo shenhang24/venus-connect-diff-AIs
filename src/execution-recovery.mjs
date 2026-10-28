@@ -2,12 +2,14 @@
 // progress.json; this module creates no worker, queue file or model request.
 export function classifyExecutionFailure(error) {
   const message=String(error?.message||error||'');
+  if(/^LOCAL_API_PROTOCOL GET \/api\/[^ ]+ (?:23|TimeoutError|AbortError)$/.test(message))return {kind:'transient',scope:'source',retryable:true};
   if(/USER_TASKS_PAUSED|USER_EXECUTION_CANCELLED|EXECUTION_SAFE_HANDOFF|SOURCE_VERSION_REFRESH|SELECTED_RERUN_COMPLETE/.test(message))return {kind:'control',scope:'control',retryable:false};
   if(/RECOVERY_WINDOW_EXHAUSTED|retry budget exhausted/i.test(message))return {kind:'budget',scope:'service',retryable:false};
   if(/policy|permission|authentication|credential|审批|认证|权限|blocked by/i.test(message))return {kind:'access',scope:'service',retryable:false};
   if(/quota|usage limit|insufficient_quota|额度|余额/i.test(message))return {kind:'quota',scope:'service',retryable:false};
   if(/selected model is at capacity|model.{0,30}(?:at capacity|capacity unavailable)|模型.{0,8}容量不足|^capacity(?:\s|$)/i.test(message))return {kind:'capacity',scope:'service',retryable:true};
   if(/^LOCAL_API_WRITE_OUTCOME_UNKNOWN|^LOCAL_API_PROTOCOL|ownership changed|fingerprint changed|identity changed/i.test(message))return {kind:'integrity',scope:'service',retryable:false};
+  if(/^LOCAL_API_HTTP POST|^LOCAL_API_HTTP GET .* HTTP (?:4(?!08|29)\d\d)/.test(message))return {kind:'integrity',scope:'service',retryable:false};
   // This validator rejection is confined to the selected document's preserved return.
   if(message==='归属依据须是对应输入文档的具体逐字内容，不能仅引用孤立术语')return {kind:'content',scope:'source',retryable:false};
   if(/CORRECTION|literal|evidence|Invalid classification|omitted or repeated|Missing long-source synthesis|Source changed|Long source changed|ENOENT|EACCES.*(?:Vault|知识点|技能|概念云)/i.test(message))return {kind:'content',scope:'source',retryable:false};
