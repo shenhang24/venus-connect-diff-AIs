@@ -1,21 +1,15 @@
-# Venus 0.8.1 — 2026-10-27 (Australia/Sydney)
+# Venus 0.8.2 — 2026-10-28 (Australia/Sydney)
 
-## Completion-driven processing
+## A fixed, truthful task progress bar
 
-The original sequential executor writes an immutable request Markdown file and durable task identity before one submission. It waits for the actual runner exit and returned result, validates and reads back saved content, then continues automatically. Successful saved results retain source versions, original model provenance and correction budgets. An unresolved submission outcome blocks blind resubmission; confirmed no-return execution failures use only existing finite recovery budgets. Local process acceptance is not a provider acceptance receipt.
+A persistent row below the header now displays task state and saved whole-document counts. It remains outside the workspace and Focus view's hidden diagnostics, with a compact narrow-window layout. The bar jumps only when the saved document count changes; it has no animated or time-based growth. Its denominator is the current classifier scope. Replayed events and retries do not add documents. Saved verified classifications and explicitly preserved manual results are included; individual segments and project-assignment requests are not extra documents. Full completion requires the existing final source, classification and literal-evidence verification gates.
 
-The interface receives task events and bounded changed-node updates instead of fixed five-second full-state refreshes. Opening a page still loads its initial library snapshot; a missed delta history can require another snapshot. Existing pages need one reload to load the updated interface. A local elapsed-time display sends no requests. The background task continues independently of the page.
+Running is green. Fully paused or checkpoint-draining work is yellow. A confirmed unexpected worker exit or blocked failure is red. Waiting for a long model return is not evidence of worker death. A lost event connection is explicitly unknown, with a local saved-status refresh available; a refreshed snapshot does not falsely claim a live connection. State text and progress accessibility values accompany color.
 
-Refresh saved status reads local records without invoking a model. Ask a question requires explicit text, discloses possible model usage, attaches no library content and refuses to interrupt active analysis. Completed request duration and wall-clock duration are distinct.
-
-## Bounded recovery
-
-Capacity failures have persistent same-model cooldown and finite backoff. Source-specific eligible failures retain exact locations and reasons in the original executor's tail ledger, with fairness between due retries and other work. Permission failures, exhausted budgets and uncertain outcomes remain visible. Deferral is not completion. Original material, preserved returns and spent correction budgets survive continuation.
+The original local ownership tick now pushes only lifecycle/count changes through the existing event stream. No five- or fifteen-second interface polling or model progress questions were added. Existing capacity cooldown, bounded retries, source-tail fairness, pause/cancel, immutable request receipts and manual questions remain unchanged.
 
 ## Validation and limits
 
-The public candidate is tested with isolated synthetic fixtures. Earlier local acceptance observed four consecutive real requests, each submitted once and saved with literal-evidence readback, and five manual saved-status reads with no new model receipts. These bounded observations do not establish whole-library completion or universal performance.
+Synthetic regression tests cover discrete count changes, duplicate events, pause, confirmed exit, long waits, recovery, disconnect, final-verification gating and accessibility attributes. Existing completion-driven and idempotent-submission tests also remain in the suite. A local authorized maintenance restart retained the source and correction/retry receipts. The real runtime correctly reported an existing evidence-validation block, rather than pretending to resume or complete it. No new successful production save is claimed for this release.
 
-The former refresh timers made local HTTP requests. There is no evidence that those timers consumed model tokens or caused provider capacity errors; no token-saving percentage is claimed. No model progress-question loop was identified. Necessary local ownership, process-exit and filesystem checks remain.
-
-Only reviewed general code, tests and English release documentation are published. Private sources, task Markdown, model returns, runtime receipts, checkpoints, logs, credentials, personal configuration and live-library screenshots are excluded. Existing confirmed templates and unrelated public UI controls are preserved. This release adds no MCP or Agent connection and does not restart an installed backend.
+Browser-based visual and narrow-window inspection could not be completed because the browser connection returned a constraints error. Layout visibility is covered by structural/CSS regression tests, not a claimed real-browser screenshot or frame-rate measurement. Original material, model results, runtime checkpoints, task Markdown, logs, personal configuration and real-library screenshots are excluded from this public package.

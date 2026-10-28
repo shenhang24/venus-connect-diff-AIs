@@ -1,3 +1,4 @@
+import {paintFixedTaskProgress} from '/workspace-controls.js';
 import {executionReviewCardHTML,classificationPlaceholder} from '/execution-review-card.js';
 import {LibraryRefreshPolicy} from '/workspace-controls.js';
 import {createNavigationHistory,installDismissNavigation} from '/workspace-controls.js';
@@ -179,6 +180,7 @@ async function api(route, data) {
 }
 const bodyCache = new Map(), readingPages = new Map();
 let renderGeneration = 0;
+let taskEventConnection='connected';
 let taskControlPending=false;const executionActionsPending=new Map();let executionFailureKey='',executionFailureCard=null;
 function taskControlMessage(control){
   if(control?.execution?.enabled&&control.execution.phase==='cancelled')return '任务已取消，已保存结果和断点保留';
@@ -188,6 +190,7 @@ function taskControlMessage(control){
   return tr(control?.externalControlRequired?'独立执行器仍在退出，尚未完全暂停':({enabled:'任务已启用，按保存断点继续',pausing:'正在暂停，等待当前请求退出',paused:'任务已完全暂停，已保存断点保留',stopped:'任务未启用，已保存断点保留',unavailable:'任务控制将在后台下次正常启动后可用'})[control?.phase]||'任务控制将在后台下次正常启动后可用');
 }
 function paintTaskControls(){
+  paintFixedTaskProgress(document.querySelector('#fixed-task-progress'),state.taskControl,taskEventConnection);
   const c=state.taskControl,message=taskControlMessage(c),start=$('#ribbon-task-start'),pause=$('#ribbon-task-pause'),status=$('#ribbon-task-status');
   if(!start||!pause)return;
   start.disabled=taskControlPending||!c?.available||c?.phase==='pausing';pause.disabled=taskControlPending||!c?.canPause;
@@ -1599,11 +1602,15 @@ function decorateChangedNode(node){const byId=new Map(state.nodes.map(n=>[n.id,n
 async function refreshDelta(){if(!libraryRefreshPolicy.loaded)return;if(deltaRefreshInFlight)return deltaRefreshInFlight;deltaRefreshInFlight=(async()=>{const response=await fetch('/api/library/delta?since='+state.revision);if(!response.ok)return;const delta=await response.json();if(delta.resetRequired){libraryRefreshPolicy.invalidate();await refresh({progressOnly:true});return;}if(!delta.upserts.length&&!delta.removed.length)return;const changed=new Map(delta.upserts.map(n=>[n.id,decorateChangedNode(n)])),removed=new Set(delta.removed),updated=state.nodes.filter(n=>!removed.has(n.id)).map(n=>{const replacement=changed.get(n.id);if(!replacement)return n;changed.delete(n.id);return {...n,...replacement,heat:networkActivityHeat(replacement.heat)};});for(const node of changed.values())updated.push({...node,heat:networkActivityHeat(node.heat)});state={...state,nodes:updated,revision:delta.revision,relations:delta.relations||state.relations};libraryRefreshPolicy.revision=delta.revision;for(const kind of ['vault','knowledge','skill','concept'])$('#'+kind+'-count').textContent=state.nodes.filter(n=>n.kind===kind&&!n.mergedInto).length;if(graph&&!benchmark){updateGraph();renderInspector();}else if(!benchmark)render();})().finally(()=>deltaRefreshInFlight=null);return deltaRefreshInFlight;}
 events.onmessage = event => {if(!passiveProtocol){libraryRefreshPolicy.observeRevision(event.data);refresh({progressOnly:true}).catch(e=>toast(e.message));}};
 events.addEventListener('library-delta',()=>{passiveProtocol=true;refreshDelta().catch(e=>toast(e.message));});
-events.addEventListener('task-status',event=>{passiveProtocol=true;const taskControl=JSON.parse(event.data);state={...state,taskControl,execution:acceptExecutionSnapshot(state.execution,taskControl.execution)};updateExecutionSourceViews();paintTaskControls();paintProcessingStatus();});
+events.addEventListener('task-status',event=>{taskEventConnection='connected';passiveProtocol=true;const taskControl=JSON.parse(event.data);state={...state,taskControl,execution:acceptExecutionSnapshot(state.execution,taskControl.execution)};updateExecutionSourceViews();paintTaskControls();paintProcessingStatus();});
 events.onopen = () => ($("#connection").textContent = tr("本机已连接"));
 events.onerror = () => ($("#connection").textContent = tr("正在重新连接"));
 // No periodic status/model requests. Completion events and explicit actions update state.
-$('#manual-status-refresh').onclick=async()=>{await refresh({progressOnly:true});await refreshDelta();};
+const refreshSavedTask=async()=>{await refresh({progressOnly:true});await refreshDelta();if(taskEventConnection!=='connected')taskEventConnection='snapshot';paintTaskControls();};
+$('#manual-status-refresh').onclick=refreshSavedTask;
+$('#fixed-progress-refresh').onclick=refreshSavedTask;
+events.addEventListener('error',()=>{taskEventConnection='disconnected';paintTaskControls();});
+events.addEventListener('open',()=>{taskEventConnection='snapshot';paintTaskControls();});
 $('#manual-question-open').onclick=()=>{const operationId=crypto.randomUUID();modal('Ask a question','<p>This explicitly submits one question to gpt-6.1-sol. It may use model tokens. No library contents are attached. It will not interrupt active analysis.</p><label class="field">Question<textarea name="question" required maxlength="12000"></textarea></label>',async form=>{const response=await fetch('/api/manual-question',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operationId,question:form.get('question')})});const answer=await response.json();if(!response.ok)throw Error(answer.error);modal('Saved answer','<pre>'+esc(answer.answer)+'</pre>',null);});};
 setInterval(()=>{const el=$('#request-timing'),request=state.execution?.taskRequest;if(!el||!request)return;const wallStart=Date.parse(request.issuedAt),end=Date.parse(request.savedAt||request.returnedAt||request.closedAt);el.textContent='Task '+request.taskId.slice(0,8)+' · '+request.status+(Number.isFinite(wallStart)?' · wall clock '+Math.max(0,Math.floor(((Number.isFinite(end)?end:Date.now())-wallStart)/1000))+' s':'')+(Number.isFinite(request.activeRequestMs)?' · completed requests '+Math.round(request.activeRequestMs/1000)+' s':'');},1000);
 refresh().then(()=>refreshDelta()).catch((e) => {

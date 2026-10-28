@@ -68,7 +68,11 @@ export function createApp({
   const reviewControl=new ReviewControl({project:path.resolve(store.root,'..'),meta:store.meta,journal,analysis:()=>analyzer?.status(),launcher:reviewLauncher});
   const tasks=new TaskControl({analyzer,layers,reviewControl,provider:provider.description,journal,classificationWorker:()=>classificationExecutorActive(store.root)});
   let navigation=null;
-  const execution=new ExecutionCoordinator({project,root:store.root,port,journal,sourceExists:id=>store.nodeById.has(id),busy:()=>manualQuestionActive||!!navigation?.active||!!navigation?.leaseActive()||!!analyzer?.active.size||!!layers?.active.size||!!reviewControl.worker()||!!workspaceSync.running||!!workspaceSync.starting||!!workspaceSync.child,...executionOptions});tasks.execution=execution;if(execution.state.enabled&&analyzer)analyzer.configure({enabled:false});
+  const execution=new ExecutionCoordinator({project,root:store.root,port,journal,sourceExists:id=>store.nodeById.has(id),busy:()=>manualQuestionActive||!!navigation?.active||!!navigation?.leaseActive()||!!analyzer?.active.size||!!layers?.active.size||!!reviewControl.worker()||!!workspaceSync.running||!!workspaceSync.starting||!!workspaceSync.child,...executionOptions});tasks.execution=execution;
+  // Reuse the existing ownership tick; emit only an actual lifecycle/count change.
+  let taskSignature='';const tick=execution.tick.bind(execution);
+  execution.tick=async()=>{try{return await tick();}finally{const status=tasks.status(),e=status.execution||{},signature=JSON.stringify([status.phase,e.phase,e.pid,e.processPresent,e.workerAlive,e.completed,e.total,e.error]);if(signature!==taskSignature){taskSignature=signature;push('task-status',status);}}};
+if(execution.state.enabled&&analyzer)analyzer.configure({enabled:false});
   store.taskControl=tasks;store.executionCoordinator=execution;
   const workspaceSync=new WorkspaceSync(store,{tasks,connections,port,project,...workspaceOptions});
   const semanticProjects=new SemanticProjectMemberships(store,{model:'gpt-6.1-sol',acceptedModels:['gpt-6.1-sol','gpt-6-astra'],busy:({ownerToken}={})=>!!navigation?.active||!!navigation?.leaseActive()||!!analyzer?.state.tasksPaused||!!analyzer?.active.size||!!layers?.active.size||!!reviewControl.worker()||(classificationExecutorActive(store.root)&&!classificationExecutorOwned(store.root,ownerToken))});

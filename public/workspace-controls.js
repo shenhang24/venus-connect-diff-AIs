@@ -56,3 +56,29 @@ export class LibraryRefreshPolicy {
   commit(ticket,revision){this.loaded=true;this.revision=revision;this.applied=ticket.generation;this.lastRead=this.clock();}
   fail(){this.urgent=true;}
 }
+
+// Saved whole-document counts, never elapsed time or model-response estimates.
+export function taskProgressPresentation(control={},connection='connected') {
+ const e=control.execution||{},total=Number.isSafeInteger(e.total)&&e.total>0?e.total:null;
+ const completed=Number.isSafeInteger(e.completed)&&e.completed>=0?e.completed:0;
+ const verified=e.phase==='complete'&&e.finalVerification?.sourceHashesChecked&&e.finalVerification?.classificationReadbackChecked&&e.finalVerification?.literalEvidenceChecked;
+ let tone='unknown',label='State unknown';
+ if(verified){tone='complete';label='Completed and verified';}
+ else if(e.phase==='paused'||control.phase==='paused'){tone='paused';label='All tasks paused';}
+ else if(['pausing','cancelling'].includes(e.phase)||control.phase==='pausing'){tone='paused';label='Saving checkpoint before stopping';}
+ else if(['blocked','storage-blocked','scheduler-conflict','cancelled'].includes(e.phase)||e.phase==='interrupted'&&e.processPresent===false){tone='error';label=e.phase==='cancelled'?'Cancelled; saved results retained':e.phase==='interrupted'?'Worker exited before completion':'Blocked; inspect saved failure';}
+ else if(e.processPresent===false&&/^WORKER_EXIT/.test(e.error?.message||'')){tone='error';label='Worker exited abnormally; recovery pending';}
+ else if(e.phase==='waiting-recovery'){tone='paused';label='Waiting for bounded recovery';}
+ else if(e.phase==='owner-unverified'||e.phase==='model-still-running'){label='Worker state needs verification';}
+ else if(['running','starting','resuming'].includes(e.phase)&&e.processPresent!==false){tone='running';label=e.phase==='starting'?'Starting original worker':'Running; waiting or saving';}
+ else if(control.phase==='stopped'||e.phase==='idle'){tone='paused';label='Tasks not started';}
+ if(connection!=='connected'){tone='unknown';label=connection==='snapshot'?'Saved snapshot; live connection unavailable':'Live connection unavailable; state unknown';}
+ const percent=total?Math.min(verified?100:99,100*Math.min(completed,total)/total):0;
+ return {tone,label,completed,total,percent,verified:!!verified,detail:'Whole documents saved and read back; manual retention included. Segments, retries and project assignment are not extra documents. Full completion requires final scope verification.'};
+}
+export function paintFixedTaskProgress(host,control,connection){
+ if(!host)return;const value=taskProgressPresentation(control,connection),count=value.completed+' / '+(value.total??'?');
+ host.dataset.tone=value.tone;host.querySelector('[data-progress-label]').textContent=value.label+' · '+count;
+ host.querySelector('[data-progress-detail]').textContent=value.detail;
+ const meter=host.querySelector('[role="progressbar"]');meter.setAttribute('aria-valuemin','0');if(value.total)meter.setAttribute('aria-valuemax',String(value.total));else meter.removeAttribute('aria-valuemax');meter.setAttribute('aria-valuenow',String(value.completed));meter.setAttribute('aria-valuetext',value.label+'; '+count+' documents');meter.style.setProperty('--saved-progress',value.percent+'%');
+}

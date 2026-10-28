@@ -52,6 +52,12 @@
       <button id="venus-restart" class="lifecycle-button" title="重新加载 Venus 后台">重启 Venus</button>
       <button id="venus-shutdown" class="lifecycle-button" title="保存已提交内容并关闭 Venus 后台">关闭 Venus</button>
     </header>
+    <section id="fixed-task-progress" aria-label="Saved task progress" data-tone="unknown">
+      <div data-progress-label role="status" aria-live="polite">Loading saved task state · 0 / ?</div>
+      <div class="saved-task-meter" role="progressbar" aria-label="Saved whole documents"><span></span></div>
+      <small data-progress-detail></small>
+      <button type="button" id="fixed-progress-refresh">Refresh saved status</button>
+    </section>
     <div class="workspace">
       <aside class="ribbon" aria-label="工作区工具栏">
         <button

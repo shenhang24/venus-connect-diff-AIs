@@ -6,7 +6,7 @@ Venus is a local knowledge workspace for people whose project decisions, researc
 
 Return to an earlier decision, check the original evidence, adapt a method to a new task, or let an authorized AI tool retrieve the same saved context. The library stays on your computer; you choose the material, analyzer and connections.
 
-**Version [0.8.1](https://github.com/shenhang24/venus-connect-diff-AIs/releases/tag/v0.8.1)** · [Changes](UPDATE-NOTES-0.8.1.md) · [Detailed installation](docs/DEPLOYMENT.md) · [Integrations](docs/INTEGRATIONS.md)
+**Version [0.8.2](https://github.com/shenhang24/venus-connect-diff-AIs/releases/tag/v0.8.2)** · [Changes](UPDATE-NOTES-0.8.2.md) · [Detailed installation](docs/DEPLOYMENT.md) · [Integrations](docs/INTEGRATIONS.md)
 
 ## Start with a small source
 

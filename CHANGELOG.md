@@ -1,5 +1,13 @@
 # Changes
 
+## 0.8.2 — 2026-10-28
+
+- Keep a task progress row visible outside Focus view, with discrete saved-document counts.
+- Distinguish running, pause, confirmed worker exit, blocked work and lost event connections using text, color and accessibility values.
+- Push lifecycle changes through the existing event stream without interface polling or model progress prompts.
+
+[Detailed update and verification limits](UPDATE-NOTES-0.8.2.md).
+
 ## 0.8.1 — 2026-10-27
 
 - Continue serial analysis from durable request receipts through verified save, preserving source versions and correction budgets.
