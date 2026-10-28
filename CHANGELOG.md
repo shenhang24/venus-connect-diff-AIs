@@ -1,5 +1,14 @@
 # Changes
 
+## 0.8.4 — 2026-10-28
+
+- Complete real Chrome acceptance of fixed saved-task progress across desktop, narrow windows, Focus view and lifecycle/connection states.
+- Recognize the exact project-evidence rejection as source-local without relaxing validation or adding retries.
+- Honor explicitly deferred singleton `ids[]` scopes while keeping undeferred batch peers blocking.
+- Preserve 0.8.2 failed packaging and 0.8.3 draft history; publish only after acceptance and final regression checks.
+
+[Detailed update and validation boundaries](UPDATE-NOTES-0.8.4.md).
+
 ## 0.8.3 — 2026-10-28
 
 - Publish the fixed progress feature with a refreshed, verified public-file manifest; 0.8.2 packaging failed and is superseded.

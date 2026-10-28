@@ -8,6 +8,8 @@ export function classifyExecutionFailure(error) {
   if(/quota|usage limit|insufficient_quota|额度|余额/i.test(message))return {kind:'quota',scope:'service',retryable:false};
   if(/selected model is at capacity|model.{0,30}(?:at capacity|capacity unavailable)|模型.{0,8}容量不足|^capacity(?:\s|$)/i.test(message))return {kind:'capacity',scope:'service',retryable:true};
   if(/^LOCAL_API_WRITE_OUTCOME_UNKNOWN|^LOCAL_API_PROTOCOL|ownership changed|fingerprint changed|identity changed/i.test(message))return {kind:'integrity',scope:'service',retryable:false};
+  // This validator rejection is confined to the selected document's preserved return.
+  if(message==='归属依据须是对应输入文档的具体逐字内容，不能仅引用孤立术语')return {kind:'content',scope:'source',retryable:false};
   if(/CORRECTION|literal|evidence|Invalid classification|omitted or repeated|Missing long-source synthesis|Source changed|Long source changed|ENOENT|EACCES.*(?:Vault|知识点|技能|概念云)/i.test(message))return {kind:'content',scope:'source',retryable:false};
   if(/^fetch failed$|LOCAL_API_TRANSPORT|ECONN|timeout|timed out|模型调用超过|HTTP 5\d\d|temporar|WORKER_EXIT|^EPERM: operation not permitted, rename .*model-lease\.json/i.test(message))return {kind:'transient',scope:'source',retryable:true};
   return {kind:'review',scope:'service',retryable:false};
